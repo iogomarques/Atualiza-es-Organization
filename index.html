@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Orçamentos de Aluguel de Usinas</title>
+<style>
+  :root{
+    --bg: #EEF1E9;
+    --surface: #FFFFFF;
+    --surface-2: #F6F7F2;
+    --ink: #1B241D;
+    --ink-soft: #5B6459;
+    --line: #D9DACC;
+    --accent: #E2992F;
+    --accent-ink: #4A3105;
+    --accent-soft: #FBEBD2;
+    --savings: #2F6F4E;
+    --savings-soft: #E4F0E9;
+    --alert: #AE3A2B;
+    --alert-soft: #F7E4E0;
+    --dot-single: #E2992F;
+    --dot-multi: #2F6F4E;
+    --radius-s: 3px;
+    --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+    --shadow-lift: 0 1px 2px rgba(27,36,29,.06), 0 6px 20px rgba(27,36,29,.07);
+  }
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; }
+  body{ margin:0; font-family: var(--sans); color: var(--ink); background: var(--bg); font-size: 14.5px; line-height: 1.5; }
+  ::selection{ background: var(--accent-soft); }
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+  button{ font-family: inherit; font-size: inherit; }
+  input, select, textarea{ font-family: inherit; font-size: inherit; color: var(--ink); }
+  .tabular{ font-variant-numeric: tabular-nums; }
+  code, .mono{ font-family: var(--mono); }
+
+  .app{ display:flex; min-height:100vh; }
+  .sidebar{ width: 250px; flex: none; background: var(--surface-2); border-right: 1px solid var(--line); display:flex; flex-direction:column; padding: 20px 14px; }
+  .brand{ display:flex; align-items:center; gap:9px; margin-bottom: 22px; padding: 0 6px; }
+  .brand-text{ display:flex; flex-direction:column; line-height:1.2; }
+  .brand-text b{ font-family: var(--serif); font-size: 17px; font-weight:700; }
+  .brand-text span{ font-size:11.5px; color: var(--ink-soft); }
+  .side-label{ font-size:11.5px; color: var(--ink-soft); padding: 0 6px 6px; }
+  .client-list{ display:flex; flex-direction:column; gap:3px; overflow-y:auto; flex:1; }
+  .client-row{ display:flex; align-items:center; gap:9px; padding: 9px 8px; border-radius: var(--radius-s); cursor:pointer; border: 1px solid transparent; }
+  .client-row:hover{ background: var(--surface); }
+  .client-row.active{ background: var(--surface); border-color: var(--line); box-shadow: var(--shadow-lift); }
+  .client-dot{ width:8px; height:8px; border-radius:50%; flex:none; }
+  .client-row .meta{ flex:1; min-width:0; }
+  .client-row .meta .nome{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .client-row .meta .uc{ font-size:11.5px; color: var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .client-row .edit-btn{ opacity:0; flex:none; background:none; border:none; cursor:pointer; padding:4px; color: var(--ink-soft); border-radius: var(--radius-s); }
+  .client-row:hover .edit-btn{ opacity:1; }
+  .client-row .edit-btn:hover{ background: var(--surface-2); color: var(--ink); }
+  .btn-new-client{ margin-top: 12px; width:100%; padding: 9px 10px; border-radius: var(--radius-s); border: 1px dashed var(--line); background: transparent; color: var(--ink-soft); cursor:pointer; text-align:left; }
+  .btn-new-client:hover{ border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+
+  .main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .topbar{ padding: 22px 32px 0; display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .topbar h1{ font-family: var(--serif); font-size: 22px; margin:0; font-weight:700; }
+  .topbar .sub{ font-size:12.5px; color: var(--ink-soft); margin-top:2px; }
+
+  .tabs{ display:flex; gap: 4px; padding: 16px 32px 0; border-bottom: 1px solid var(--line); flex-wrap:wrap; }
+  .tab-btn{ background:none; border:none; cursor:pointer; padding: 9px 4px; margin-right: 22px; color: var(--ink-soft); border-bottom: 2px solid transparent; position:relative; top:1px; }
+  .tab-btn.active{ color: var(--ink); border-bottom-color: var(--accent); font-weight:600; }
+  .tab-btn:disabled{ color:#C7CBBE; cursor:not-allowed; }
+
+  .content{ padding: 24px 32px 60px; flex:1; }
+  .empty-state{ max-width: 460px; margin: 40px auto; text-align:center; padding: 32px 24px; border: 1px dashed var(--line); border-radius: var(--radius-s); }
+  .empty-state p{ color: var(--ink-soft); margin: 8px 0 18px; }
+
+  .quote-grid{ display:flex; gap: 28px; align-items:flex-start; }
+  .quote-form-col{ flex: 1 1 52%; min-width: 320px; }
+  .quote-preview-col{ flex: 1 1 48%; min-width: 320px; position: sticky; top: 20px; }
+
+  fieldset{ border:1px solid var(--line); border-radius: var(--radius-s); padding: 14px 16px 16px; margin: 0 0 16px; background: var(--surface); }
+  legend{ padding: 0 6px; font-size:12.5px; color: var(--ink-soft); }
+  .field{ margin-bottom: 12px; }
+  .field:last-child{ margin-bottom:0; }
+  .field label{ display:block; font-size:13px; margin-bottom: 4px; font-weight: 600; }
+  .field .hint{ display:block; font-size:11.5px; color: var(--ink-soft); margin-top:3px; font-weight:400; }
+  .field input[type=text], .field input[type=number], .field textarea, .field select{ width:100%; padding: 8px 9px; border:1px solid var(--line); border-radius: var(--radius-s); background: var(--surface); }
+  .field textarea{ resize: vertical; min-height:52px; }
+  .field-row{ display:flex; gap:10px; flex-wrap:wrap; }
+  .field-row .field{ flex:1; min-width:160px; }
+  .checkbox-field{ display:flex; align-items:flex-start; gap:8px; font-size:13px; }
+  .checkbox-field input{ margin-top:3px; }
+
+  .ponto-row{ display:flex; gap:8px; align-items:flex-end; margin-bottom:8px; padding-bottom:8px; border-bottom: 1px dashed var(--line); flex-wrap:wrap; }
+  .ponto-row:last-child{ border-bottom:none; }
+  .ponto-row .field{ margin-bottom:0; flex:1; min-width:120px; }
+  .ponto-row .f-nome{ flex: 1.3; min-width:140px; }
+  .ponto-row .rm-btn{ flex:none; background:none; border:1px solid var(--line); border-radius: var(--radius-s); color: var(--alert); cursor:pointer; padding: 8px 9px; line-height:1; height:36px; }
+  .ponto-row .rm-btn:hover{ background: var(--alert-soft); }
+  .add-ponto-btn, .add-var-btn{ background:none; border:1px dashed var(--line); border-radius: var(--radius-s); padding:7px 10px; cursor:pointer; color: var(--ink-soft); font-size:13px; }
+  .add-ponto-btn:hover, .add-var-btn:hover{ border-color: var(--savings); color: var(--savings); }
+
+  .btn{ display:inline-flex; align-items:center; gap:6px; padding: 9px 16px; border-radius: var(--radius-s); cursor:pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .btn:hover{ border-color: #B8BCA9; }
+  .btn-primary{ background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight:600; }
+  .btn-primary:hover{ background: #D08A26; }
+  .btn-ghost{ border-color: transparent; background:transparent; color: var(--ink-soft); }
+  .btn-ghost:hover{ color: var(--ink); background: var(--surface-2); }
+  .btn-danger{ color: var(--alert); }
+  .btn-danger:hover{ background: var(--alert-soft); border-color: var(--alert); }
+  .btn[data-confirming="1"]{ background: var(--alert); border-color: var(--alert); color:#fff; }
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top: 4px; }
+  .btn-sm{ padding:5px 10px; font-size:12.5px; }
+
+  .panel{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 16px 18px; margin-bottom:20px; }
+  .panel h2{ font-family: var(--serif); font-size:16px; margin: 0 0 12px; }
+  .breakdown-row{ display:flex; justify-content:space-between; gap:12px; padding: 6px 0; border-bottom: 1px solid var(--surface-2); font-size: 13.5px; }
+  .breakdown-row .lbl{ color: var(--ink-soft); }
+  .breakdown-row .val{ font-weight:500; white-space:nowrap; }
+  .breakdown-row.total{ border-top: 1px solid var(--ink); border-bottom:none; margin-top:6px; padding-top:10px; font-size:15.5px; }
+  .breakdown-row.total .lbl{ color: var(--ink); font-weight:700; }
+  .breakdown-row.total .val{ font-weight:700; }
+  .breakdown-row.savings .val{ color: var(--savings); }
+  .ponto-breakdown{ border:1px solid var(--surface-2); border-radius: var(--radius-s); padding:10px 12px; margin-bottom:8px; }
+  .ponto-breakdown .nome{ font-weight:600; margin-bottom:4px; }
+
+  .badge{ display:inline-flex; align-items:center; gap:6px; padding: 4px 10px; border-radius: 999px; font-size:12.5px; font-weight:600; }
+  .badge.ok{ background: var(--savings-soft); color: var(--savings); }
+  .badge.bad{ background: var(--alert-soft); color: var(--alert); }
+  .pill{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:var(--surface-2); color:var(--ink-soft); }
+  .pill.single{ background:var(--accent-soft); color:var(--accent-ink); }
+  .pill.multi{ background:var(--savings-soft); color:var(--savings); }
+
+  .letter-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); box-shadow: var(--shadow-lift); padding: 26px 28px; margin-bottom: 14px; }
+  .letter-card h2{ font-family: var(--serif); font-size:15px; margin:0 0 14px; color: var(--ink-soft); font-weight:400; }
+  #letter-text{ width:100%; border:none; background:transparent; resize:vertical; font-family: var(--serif); font-size: 15px; line-height:1.65; min-height: 220px; padding:0; white-space:pre-wrap; }
+  #letter-text:focus{ outline:none; }
+
+  .checklist{ display:flex; flex-direction:column; gap:6px; }
+  .checklist label{ display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:400; }
+  .checklist input{ margin:0; }
+
+  .history-item{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 14px 16px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; }
+  .history-item .info b{ display:block; }
+  .history-item .info span{ font-size:12.5px; color: var(--ink-soft); }
+
+  .modal-overlay{ position:fixed; inset:0; background: rgba(27,36,29,.35); display:flex; align-items:flex-start; justify-content:center; padding: 40px 16px; overflow-y:auto; z-index:50; }
+  .modal{ background: var(--surface); border-radius: var(--radius-s); width:100%; max-width:480px; padding: 22px 24px 24px; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+  .modal h2{ font-family: var(--serif); margin:0 0 16px; font-size:19px; }
+  .modal-close{ float:right; background:none; border:none; cursor:pointer; color: var(--ink-soft); font-size:18px; }
+
+  #toast-root{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:100; }
+  .toast{ background: var(--ink); color:#fff; padding:10px 18px; border-radius: var(--radius-s); font-size:13.5px; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 80vw; }
+
+  /* ---- Perfis ---- */
+  .profile-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 14px 16px; margin-bottom:10px; }
+  .profile-card .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; }
+  .profile-card h3{ margin:0 0 4px; font-family: var(--serif); font-size:16px; }
+  .profile-card .desc{ font-size:12.5px; color: var(--ink-soft); margin:0 0 8px; max-width:520px; }
+
+  .var-row{ display:grid; grid-template-columns: 2fr 1.1fr 0.9fr 0.9fr 0.7fr auto; gap:6px; margin-bottom:6px; align-items:center; }
+  .var-row.item-row{ grid-template-columns: 2fr 1.1fr 0.9fr 0.7fr auto; }
+  .var-row input, .var-row select{ padding:7px 8px; border:1px solid var(--line); border-radius: var(--radius-s); width:100%; }
+  .var-row .rm-btn{ background:none; border:1px solid var(--line); border-radius: var(--radius-s); color: var(--alert); cursor:pointer; padding: 6px 9px; }
+  .var-row .rm-btn:hover{ background: var(--alert-soft); }
+  .var-header{ display:grid; grid-template-columns: 2fr 1.1fr 0.9fr 0.9fr 0.7fr auto; gap:6px; font-size:11px; color: var(--ink-soft); margin-bottom:4px; }
+  .var-header.item-header{ grid-template-columns: 2fr 1.1fr 0.9fr 0.7fr auto; }
+
+  .formula-box textarea{ width:100%; min-height:140px; font-family: var(--mono); font-size:13px; padding:10px 12px; border:1px solid var(--line); border-radius: var(--radius-s); resize:vertical; line-height:1.6; }
+  .formula-box .hint{ display:block; font-size:11.5px; color: var(--ink-soft); margin-top:5px; }
+
+  .test-result{ margin-top:10px; padding:10px 12px; border-radius: var(--radius-s); font-size:13px; }
+  .test-result.success{ background: var(--savings-soft); color: var(--savings); }
+  .test-result.error{ background: var(--alert-soft); color: var(--alert); font-family: var(--mono); white-space:pre-wrap; }
+  .test-result .kv{ display:flex; justify-content:space-between; gap:10px; padding:2px 0; color: var(--ink); font-family: var(--mono); font-size:12.5px; }
+
+  @media (max-width: 880px){
+    .app{ flex-direction:column; }
+    .sidebar{ width:100%; flex-direction:row; align-items:center; padding:12px; overflow-x:auto; }
+    .brand{ margin-bottom:0; }
+    .side-label{ display:none; }
+    .client-list{ flex-direction:row; overflow-x:auto; flex:none; }
+    .client-row{ flex:none; }
+    .btn-new-client{ margin-top:0; width:auto; white-space:nowrap; }
+    .topbar, .tabs, .content{ padding-left:16px; padding-right:16px; }
+    .quote-grid{ flex-direction:column; }
+    .quote-preview-col{ position:static; width:100%; }
+    .var-row, .var-header{ grid-template-columns: 1fr; }
+  }
+
+  @media print{
+    body *{ visibility:hidden; }
+    #letter-card, #letter-card *{ visibility:visible; }
+    #letter-card{ position:absolute; top:0; left:0; width:100%; box-shadow:none; border:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+    <div class="topbar" id="topbar"></div>
+    <nav class="tabs" id="tabs"></nav>
+    <div class="content" id="tab-content"></div>
+  </main>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   UTILITÁRIOS
+   ============================================================ */
+function uid(){ return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
+
+function parseNumBR(str){
+  if(str === null || str === undefined) return 0;
+  var s = String(str).trim();
+  if(s === '') return 0;
+  if(s.indexOf(',') > -1){ s = s.replace(/\./g,'').replace(',', '.'); }
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+var fmtCurrency = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' });
+function fmtBRL(n){ return fmtCurrency.format(n || 0); }
+function fmtKwh(n){ return (n||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' kWh'; }
+function fmtPct(frac){ return ((frac||0)*100).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '%'; }
+function fmtNum(n){
+  if(n === undefined || n === null) return '0';
+  var s = n.toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:6});
+  return s;
+}
+function formatarValor(v, formato){
+  if(v === undefined || v === null || isNaN(v)) return '—';
+  switch(formato){
+    case 'moeda': return fmtBRL(v);
+    case 'kwh': return fmtKwh(v);
+    case 'percentual': return fmtPct(v);
+    default: return (v||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+}
+function escapeHtml(s){ return String(s===undefined||s===null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function slugify(s){
+  return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-zA-Z0-9]+/g,' ').trim().split(' ').filter(Boolean)
+    .map(function(w,i){ return i===0 ? w.toLowerCase() : (w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()); })
+    .join('') || ('campo' + Math.floor(Math.random()*1000));
+}
+function parseAssignKey(line){
+  var m = /^\s*([A-Za-zÀ-ÖØ-öø-ÿ_][A-Za-zÀ-ÖØ-öø-ÿ0-9_]*)\s*=/.exec(line||'');
+  return m ? m[1] : null;
+}
+function linhasExecutaveis(arr){
+  return (arr||[]).filter(function(l){
+    var t = (l||'').trim();
+    return t && t.charAt(0) !== '#' && t.substr(0,2) !== '//';
+  });
+}
+function refPadrao(){
+  var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var d = new Date();
+  return meses[d.getMonth()] + '/' + d.getFullYear();
+}
+function toast(msg){
+  var root = document.getElementById('toast-root');
+  var el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  root.innerHTML = '';
+  root.appendChild(el);
+  setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 3200);
+}
+function num(id){ var el = document.getElementById(id); return el ? parseNumBR(el.value) : 0; }
+function txt(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function chk(id){ var el = document.getElementById(id); return el ? el.checked : false; }
+function setIf(id, value){ var el = document.getElementById(id); if(el) el.value = value; }
+function setChecked(id, value){ var el = document.getElementById(id); if(el) el.checked = !!value; }
+
+/* ============================================================
+   MOTOR DE FÓRMULAS (tokenizer + parser + avaliador)
+   ============================================================ */
+function tokenize(expr){
+  var tokens = [];
+  var i = 0, n = expr.length;
+  function isDigit(c){ return c >= '0' && c <= '9'; }
+  function isIdentStart(c){ return /[A-Za-z_À-ÖØ-öø-ÿ]/.test(c); }
+  function isIdentPart(c){ return /[A-Za-z0-9_À-ÖØ-öø-ÿ]/.test(c); }
+  while(i < n){
+    var c = expr[i];
+    if(c === ' ' || c === '\t'){ i++; continue; }
+    if(isDigit(c) || (c === '.' && isDigit(expr[i+1]))){
+      var j = i;
+      while(j<n && (isDigit(expr[j]) || expr[j]==='.')) j++;
+      tokens.push({type:'NUM', value: parseFloat(expr.slice(i,j))});
+      i = j; continue;
+    }
+    if(isIdentStart(c)){
+      var j2 = i;
+      while(j2<n && isIdentPart(expr[j2])) j2++;
+      tokens.push({type:'ID', value: expr.slice(i,j2)});
+      i = j2; continue;
+    }
+    var two = expr.substr(i,2);
+    if(['>=','<=','==','!=','&&','||'].indexOf(two) > -1){ tokens.push({type:'OP', value: two}); i+=2; continue; }
+    if('+-*/%^(),?:><=!'.indexOf(c) > -1){ tokens.push({type:'OP', value:c}); i++; continue; }
+    throw new Error("Caractere inesperado: '"+c+"'");
+  }
+  return tokens;
+}
+
+function parseExprTokens(tokens){
+  var pos = 0;
+  function peek(){ return tokens[pos]; }
+  function next(){ return tokens[pos++]; }
+  function expectOp(v){ var t = next(); if(!t || t.type!=='OP' || t.value!==v) throw new Error("Esperado '"+v+"'"); }
+  function parseAssignment(){
+    if(peek() && peek().type==='ID' && tokens[pos+1] && tokens[pos+1].type==='OP' && tokens[pos+1].value==='='){
+      var name = next().value; next();
+      var expr = parseTernary();
+      return {type:'Assign', name:name, expr:expr};
+    }
+    return parseTernary();
+  }
+  function parseTernary(){
+    var cond = parseOr();
+    if(peek() && peek().type==='OP' && peek().value==='?'){
+      next(); var a = parseTernary(); expectOp(':'); var b = parseTernary();
+      return {type:'Ternary', cond:cond, a:a, b:b};
+    }
+    return cond;
+  }
+  function parseOr(){ var left=parseAnd(); while(peek()&&peek().type==='OP'&&peek().value==='||'){ next(); var r=parseAnd(); left={type:'Bin',op:'||',left:left,right:r}; } return left; }
+  function parseAnd(){ var left=parseEquality(); while(peek()&&peek().type==='OP'&&peek().value==='&&'){ next(); var r=parseEquality(); left={type:'Bin',op:'&&',left:left,right:r}; } return left; }
+  function parseEquality(){ var left=parseComparison(); while(peek()&&peek().type==='OP'&&(peek().value==='=='||peek().value==='!=')){ var op=next().value; var r=parseComparison(); left={type:'Bin',op:op,left:left,right:r}; } return left; }
+  function parseComparison(){ var left=parseAdditive(); while(peek()&&peek().type==='OP'&&['>','>=','<','<='].indexOf(peek().value)>-1){ var op=next().value; var r=parseAdditive(); left={type:'Bin',op:op,left:left,right:r}; } return left; }
+  function parseAdditive(){ var left=parseMultiplicative(); while(peek()&&peek().type==='OP'&&(peek().value==='+'||peek().value==='-')){ var op=next().value; var r=parseMultiplicative(); left={type:'Bin',op:op,left:left,right:r}; } return left; }
+  function parseMultiplicative(){ var left=parseUnary(); while(peek()&&peek().type==='OP'&&(peek().value==='*'||peek().value==='/'||peek().value==='%')){ var op=next().value; var r=parseUnary(); left={type:'Bin',op:op,left:left,right:r}; } return left; }
+  function parseUnary(){ if(peek()&&peek().type==='OP'&&(peek().value==='-'||peek().value==='!')){ var op=next().value; var arg=parseUnary(); return {type:'Unary',op:op,arg:arg}; } return parsePower(); }
+  function parsePower(){ var base=parsePrimary(); if(peek()&&peek().type==='OP'&&peek().value==='^'){ next(); var e=parseUnary(); return {type:'Bin',op:'^',left:base,right:e}; } return base; }
+  function parsePrimary(){
+    var t = peek();
+    if(!t) throw new Error("Expressão incompleta");
+    if(t.type==='NUM'){ next(); return {type:'Num', value:t.value}; }
+    if(t.type==='OP' && t.value==='('){ next(); var e=parseTernary(); expectOp(')'); return e; }
+    if(t.type==='ID'){
+      next();
+      if(peek() && peek().type==='OP' && peek().value==='('){
+        next();
+        var args = [];
+        if(!(peek() && peek().type==='OP' && peek().value===')')){
+          args.push(parseTernary());
+          while(peek() && peek().type==='OP' && peek().value===','){ next(); args.push(parseTernary()); }
+        }
+        expectOp(')');
+        if(t.value === 'se'){
+          if(args.length !== 3) throw new Error("se(...) precisa de 3 argumentos: condição, se-verdadeiro, se-falso");
+          return {type:'Ternary', cond:args[0], a:args[1], b:args[2]};
+        }
+        return {type:'Call', name:t.value, args:args};
+      }
+      return {type:'Var', name:t.value};
+    }
+    throw new Error("Token inesperado");
+  }
+  var ast = parseAssignment();
+  if(pos < tokens.length) throw new Error("Caracteres inesperados no final da expressão");
+  return ast;
+}
+
+function toNumOrThrow(v){ if(Array.isArray(v)) throw new Error("Era esperado um número, mas veio uma lista"); return v; }
+function flattenArgs(args){
+  if(args.length===1 && Array.isArray(args[0])) return args[0].slice();
+  return args.map(function(a){ if(Array.isArray(a)) throw new Error("Lista não suportada aqui"); return a; });
+}
+var ENGINE_FUNCTIONS = {
+  min: function(){ var xs=flattenArgs(Array.prototype.slice.call(arguments)); return Math.min.apply(null, xs); },
+  max: function(){ var xs=flattenArgs(Array.prototype.slice.call(arguments)); return Math.max.apply(null, xs); },
+  abs: function(a){ return Math.abs(a); },
+  round: function(a, casas){ var m = Math.pow(10, casas||0); return Math.round(a*m)/m; },
+  sum: function(){ var xs=flattenArgs(Array.prototype.slice.call(arguments)); return xs.reduce(function(s,x){return s+x;},0); },
+  media: function(){ var xs=flattenArgs(Array.prototype.slice.call(arguments)); return xs.length? xs.reduce(function(s,x){return s+x;},0)/xs.length : 0; }
+};
+
+function evalNode(node, scope){
+  switch(node.type){
+    case 'Num': return node.value;
+    case 'Var':
+      if(!(node.name in scope)) throw new Error("Variável não definida: '"+node.name+"'");
+      return scope[node.name];
+    case 'Unary':{
+      var v = evalNode(node.arg, scope);
+      if(node.op==='-') return -toNumOrThrow(v);
+      if(node.op==='!') return v ? 0 : 1;
+      throw new Error("Operador desconhecido: "+node.op);
+    }
+    case 'Bin':{
+      var l = evalNode(node.left, scope), r = evalNode(node.right, scope);
+      switch(node.op){
+        case '+': return toNumOrThrow(l)+toNumOrThrow(r);
+        case '-': return toNumOrThrow(l)-toNumOrThrow(r);
+        case '*': return toNumOrThrow(l)*toNumOrThrow(r);
+        case '/': if(toNumOrThrow(r)===0) throw new Error("Divisão por zero"); return l/r;
+        case '%': return l % r;
+        case '^': return Math.pow(l,r);
+        case '>': return (l>r)?1:0;
+        case '>=': return (l>=r)?1:0;
+        case '<': return (l<r)?1:0;
+        case '<=': return (l<=r)?1:0;
+        case '==': return (l===r)?1:0;
+        case '!=': return (l!==r)?1:0;
+        case '&&': return (l && r)?1:0;
+        case '||': return (l || r)?1:0;
+      }
+      throw new Error("Operador desconhecido: "+node.op);
+    }
+    case 'Ternary':
+      return evalNode(node.cond, scope) ? evalNode(node.a, scope) : evalNode(node.b, scope);
+    case 'Call':{
+      var fn = ENGINE_FUNCTIONS[node.name];
+      if(!fn) throw new Error("Função desconhecida: '"+node.name+"'");
+      var argVals = node.args.map(function(a){ return evalNode(a, scope); });
+      return fn.apply(null, argVals);
+    }
+    case 'Assign':{
+      var val = evalNode(node.expr, scope);
+      scope[node.name] = val;
+      return val;
+    }
+  }
+  throw new Error("Nó de expressão desconhecido");
+}
+
+function runLine(line, scope){
+  var trimmed = (line||'').trim();
+  if(!trimmed) return null;
+  var tokens = tokenize(trimmed);
+  var ast = parseExprTokens(tokens);
+  return evalNode(ast, scope);
+}
+
+/* Roda um perfil inteiro (fórmulas + itens, se houver) a partir de valores de entrada. */
+function avaliarPerfil(profile, valoresEntrada, itensInput){
+  var scope = Object.assign({}, valoresEntrada);
+  try{
+    if(!profile.possuiItensMultiplos){
+      linhasExecutaveis(profile.formulas).forEach(function(line, idx){
+        try{ runLine(line, scope); }
+        catch(e){ throw {linha: idx+1, texto: line, mensagem: e.message, secao:'formulas'}; }
+      });
+      return { ok:true, scope: scope, itensResultado: null };
+    } else {
+      linhasExecutaveis(profile.formulasCompartilhadas).forEach(function(line, idx){
+        try{ runLine(line, scope); }
+        catch(e){ throw {linha: idx+1, texto: line, mensagem: e.message, secao:'compartilhadas'}; }
+      });
+      var itemKey = parseAssignKey(profile.itemFormula);
+      var itensResultado = (itensInput||[]).map(function(itemVals, i){
+        var itemScope = Object.assign({}, scope, itemVals);
+        try{ runLine(profile.itemFormula, itemScope); }
+        catch(e){ throw {linha:1, texto: profile.itemFormula, mensagem: e.message, secao:'item', itemIndex:i}; }
+        return itemScope;
+      });
+      var chavesItem = (profile.itemVariaveis||[]).map(function(v){ return v.chave; });
+      if(itemKey && chavesItem.indexOf(itemKey)===-1) chavesItem.push(itemKey);
+      chavesItem.forEach(function(k){
+        scope['itens_'+k] = itensResultado.map(function(r){ return r[k]; });
+      });
+      linhasExecutaveis(profile.formulasFinais).forEach(function(line, idx){
+        try{ runLine(line, scope); }
+        catch(e){ throw {linha: idx+1, texto: line, mensagem: e.message, secao:'finais'}; }
+      });
+      return { ok:true, scope: scope, itensResultado: itensResultado, chaveItemValor: itemKey };
+    }
+  }catch(erro){
+    return { ok:false, erro: erro };
+  }
+}
+function mensagemErroAvaliacao(erro){
+  var secaoLabel = { formulas:'Fórmulas', compartilhadas:'Fórmulas compartilhadas', item:'Fórmula do item', finais:'Fórmulas finais' }[erro.secao] || 'Fórmula';
+  var onde = erro.secao === 'item' ? (secaoLabel) : (secaoLabel + ', linha ' + erro.linha);
+  return onde + ' — "' + erro.texto + '": ' + erro.mensagem;
+}
+
+/* ============================================================
+   ESTADO + ARMAZENAMENTO
+   ============================================================ */
+var state = {
+  profiles: [], clients: [], quotes: [],
+  selectedClientId: null, activeTab: 'novo',
+  editingProfileId: null, /* perfil sendo editado/criado no momento (id ou null=novo) */
+  lastDraft: null
+};
+
+/* Funciona tanto dentro do chat da Claude (usa window.storage, privado por conta) quanto
+   hospedado como site comum (usa localStorage do navegador, privado por dispositivo/navegador). */
+var TEM_STORAGE_CLAUDE = (typeof window !== 'undefined') && window.storage && typeof window.storage.get === 'function';
+
+async function storageGet(key){
+  try{
+    if(TEM_STORAGE_CLAUDE){ var r = await window.storage.get(key, false); return r ? r.value : null; }
+    return window.localStorage.getItem(key);
+  }catch(e){ return null; }
+}
+async function storageSet(key, value){
+  try{
+    if(TEM_STORAGE_CLAUDE){ await window.storage.set(key, value, false); return true; }
+    window.localStorage.setItem(key, value);
+    return true;
+  }catch(e){ return false; }
+}
+async function saveProfiles(){ await storageSet('usinas:v2:profiles', JSON.stringify(state.profiles)); }
+async function saveClients(){ await storageSet('usinas:v2:clients', JSON.stringify(state.clients)); }
+async function saveQuotes(){ await storageSet('usinas:v2:quotes', JSON.stringify(state.quotes)); }
+
+/* ============================================================
+   PRESETS (Perfis de Faturamento prontos)
+   ============================================================ */
+function presetGD1(){
+  return {
+    id: uid(), isPreset: true, nome: 'GD1 (padrão, sem Fio B)',
+    descricao: 'Modelo padrão para geração distribuída ciclo GD1: um único ponto de consumo, sem cobrança de Fio B sobre a energia injetada.',
+    possuiItensMultiplos: false,
+    variaveis: [
+      {chave:'precoBase', rotulo:'Preço base do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
+      {chave:'taxaBandeira', rotulo:'Taxa de bandeira por kWh', categoria:'fixo', valorPadrao:0.025054, formato:'moeda'},
+      {chave:'desconto', rotulo:'Desconto concedido (decimal — 0.10 = 10%)', categoria:'fixo', valorPadrao:0.10, formato:'percentual'},
+      {chave:'injecaoKwh', rotulo:'Injeção solar do mês', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'consumoKwh', rotulo:'Consumo do mês', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'adicionalBandeira', rotulo:'Adicional de bandeira (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'gastoNaoCompensado', rotulo:'Gasto não compensado (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'iluminacao', rotulo:'Iluminação pública (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'adicionais', rotulo:'Adicionais (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'multas', rotulo:'Multas (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'valorFaturaImpresso', rotulo:'Valor da fatura impresso na conta (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
+    ],
+    formulas: [
+      'precoSemDesconto = precoBase + taxaBandeira',
+      'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
+      'contaEnergiaRS = precoSemDesconto * consumoKwh',
+      'injecaoSemDescontoRS = precoSemDesconto * injecaoKwh',
+      'injecaoComDescontoRS = precoComDesconto * injecaoKwh',
+      'multasEAdicionais = multas + adicionais',
+      'somaComponentes = adicionalBandeira + gastoNaoCompensado + iluminacao + adicionais + multas',
+      'valorSemSolar = valorFaturaImpresso + contaEnergiaRS',
+      'valorComSolar = injecaoComDescontoRS + valorFaturaImpresso',
+      'descontoRS = injecaoSemDescontoRS - injecaoComDescontoRS',
+      'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)',
+      'valorFinal = valorComSolar - ajuste',
+      'lucroFinal = injecaoComDescontoRS'
+    ],
+    chaveTotalFinal: 'valorFinal',
+    rotuloTotalCliente: 'VALOR COM SOLAR E TOTAL A SER PAGO',
+    camposVisiveisCliente: ['injecaoKwh','valorFaturaImpresso','multasEAdicionais','valorSemSolar'],
+    rotulosCampos: {
+      precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
+      contaEnergiaRS:'Conta de energia (tarifa cheia)', injecaoSemDescontoRS:'Injeção em R$ sem desconto',
+      injecaoComDescontoRS:'Injeção em R$ com desconto', multasEAdicionais:'Multas e adicionais',
+      somaComponentes:'Soma dos componentes da fatura', valorSemSolar:'Valor sem solar',
+      valorComSolar:'Valor com solar (antes do ajuste)', descontoRS:'Desconto concedido em R$',
+      descontoReal:'Desconto real', lucroFinal:'Receita da usina (lucro)'
+    },
+    formatosCampos: { descontoReal:'percentual' },
+    textoIntroducao: 'O preço da geração foi calculado com base no consumo não compensado e na bandeira tarifária vigente. Segue o resumo da fatura de {referencia}:'
+  };
+}
+function presetGD2SemFioB(){
+  var p = presetGD1();
+  p.id = uid();
+  p.nome = 'GD2 sem Fio B';
+  p.descricao = 'Modelo para usinas no ciclo GD2 sem cobrança de Fio B. Estrutura idêntica ao GD1 — use como ponto de partida e personalize se precisar.';
+  return p;
+}
+function presetGD2ComFioBUnico(){
+  return {
+    id: uid(), isPreset: true, nome: 'GD2 com Fio B (ponto único)',
+    descricao: 'Um único ponto de consumo, com dedução do Fio B sobre o valor da energia injetada.',
+    possuiItensMultiplos: false,
+    variaveis: [
+      {chave:'precoBase', rotulo:'Preço base do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
+      {chave:'taxaBandeira', rotulo:'Taxa de bandeira por kWh', categoria:'fixo', valorPadrao:0.025054, formato:'moeda'},
+      {chave:'desconto', rotulo:'Desconto concedido (decimal — 0.10 = 10%)', categoria:'fixo', valorPadrao:0.10, formato:'percentual'},
+      {chave:'injecaoKwh', rotulo:'Injeção solar do mês', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'consumoKwh', rotulo:'Consumo do mês', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'fioB', rotulo:'Fio B do mês (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'adicionalBandeira', rotulo:'Adicional de bandeira (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'gastoNaoCompensado', rotulo:'Gasto não compensado (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'iluminacao', rotulo:'Iluminação pública (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'adicionais', rotulo:'Adicionais (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'multas', rotulo:'Multas (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'valorFaturaImpresso', rotulo:'Valor da fatura impresso na conta (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
+    ],
+    formulas: [
+      'precoSemDesconto = precoBase + taxaBandeira',
+      'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
+      'contaEnergiaRS = precoSemDesconto * consumoKwh',
+      'injecaoSemDescontoRS = precoSemDesconto * injecaoKwh',
+      'injecaoComDescontoRS = precoComDesconto * injecaoKwh - fioB',
+      'multasEAdicionais = multas + adicionais',
+      'somaComponentes = adicionalBandeira + gastoNaoCompensado + iluminacao + adicionais + multas',
+      'valorSemSolar = valorFaturaImpresso + contaEnergiaRS',
+      'valorComSolar = injecaoComDescontoRS + valorFaturaImpresso',
+      'descontoRS = injecaoSemDescontoRS - injecaoComDescontoRS',
+      'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)',
+      'valorFinal = valorComSolar - ajuste',
+      'lucroFinal = injecaoComDescontoRS'
+    ],
+    chaveTotalFinal: 'valorFinal',
+    rotuloTotalCliente: 'VALOR COM SOLAR E TOTAL A SER PAGO',
+    camposVisiveisCliente: ['injecaoKwh','valorFaturaImpresso','multasEAdicionais','valorSemSolar'],
+    rotulosCampos: {
+      precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
+      contaEnergiaRS:'Conta de energia (tarifa cheia)', injecaoSemDescontoRS:'Injeção em R$ sem desconto',
+      injecaoComDescontoRS:'Injeção em R$ com desconto (líquido de Fio B)', multasEAdicionais:'Multas e adicionais',
+      somaComponentes:'Soma dos componentes da fatura', valorSemSolar:'Valor sem solar',
+      valorComSolar:'Valor com solar (antes do ajuste)', descontoRS:'Desconto concedido em R$',
+      descontoReal:'Desconto real', lucroFinal:'Receita da usina (lucro)'
+    },
+    formatosCampos: { descontoReal:'percentual' },
+    textoIntroducao: 'O preço da geração foi calculado com base no consumo não compensado, na bandeira tarifária vigente e no Fio B aplicável. Segue o resumo da fatura de {referencia}:'
+  };
+}
+function presetGD2ComFioBMultiplos(){
+  return {
+    id: uid(), isPreset: true, nome: 'GD2 com Fio B — múltiplos pontos',
+    descricao: 'Vários pontos de consumo (ex.: casa + comercial) dividindo a mesma injeção solar, cada um com seu próprio Fio B.',
+    possuiItensMultiplos: true,
+    variaveis: [
+      {chave:'precoBase', rotulo:'Preço base do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
+      {chave:'taxaBandeira', rotulo:'Taxa de bandeira por kWh', categoria:'fixo', valorPadrao:0.025054, formato:'moeda'},
+      {chave:'desconto', rotulo:'Desconto concedido (decimal — 0.10 = 10%)', categoria:'fixo', valorPadrao:0.10, formato:'percentual'},
+      {chave:'valorFaturaInfo', rotulo:'Valor da fatura da concessionária (opcional, informativo)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
+    ],
+    formulasCompartilhadas: [
+      'precoSemDesconto = precoBase + taxaBandeira',
+      'precoComDesconto = precoBase*(1-desconto) + taxaBandeira'
+    ],
+    itemVariaveis: [
+      {chave:'consumoKwh', rotulo:'Consumo do ponto (kWh)', valorPadrao:0, formato:'kwh'},
+      {chave:'fioB', rotulo:'Fio B do ponto (R$)', valorPadrao:0, formato:'moeda'}
+    ],
+    itemFormula: 'valorItem = consumoKwh*precoComDesconto - fioB',
+    formulasFinais: [
+      'consumoTotal = sum(itens_consumoKwh)',
+      'liquidoTotal = sum(itens_valorItem)',
+      'contaEnergiaRS = precoSemDesconto * consumoTotal',
+      'valorSemSolar = se(valorFaturaInfo > 0, valorFaturaInfo + contaEnergiaRS, 0)',
+      'valorComSolar = se(valorFaturaInfo > 0, valorFaturaInfo + liquidoTotal, 0)',
+      'descontoReal = se(valorSemSolar > 0, (valorSemSolar - valorComSolar) / valorSemSolar, 0)',
+      'valorFinal = liquidoTotal - ajuste'
+    ],
+    chaveTotalFinal: 'valorFinal',
+    rotuloTotalCliente: 'VALOR A SER PAGO (TOTAL)',
+    rotuloItemPrefixo: 'Injeção em ',
+    camposVisiveisCliente: [],
+    rotulosCampos: {
+      precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
+      consumoTotal:'Consumo total (todos os pontos)', liquidoTotal:'Total líquido (todos os pontos)',
+      contaEnergiaRS:'Conta de energia (tarifa cheia)', valorSemSolar:'Valor sem solar (informativo)',
+      valorComSolar:'Valor com solar (informativo)', descontoReal:'Desconto real'
+    },
+    formatosCampos: { descontoReal:'percentual' },
+    textoIntroducao: 'Segue o resumo da injeção solar do mês de {referencia}, separado por ponto de consumo. Os valores já estão descontados do Fio B de cada ponto.'
+  };
+}
+function presetsPadrao(){ return [ presetGD1(), presetGD2SemFioB(), presetGD2ComFioBUnico(), presetGD2ComFioBMultiplos() ]; }
+
+function seedClients(profiles){
+  var gd1 = profiles.find(function(p){ return p.nome === 'GD1 (padrão, sem Fio B)'; });
+  var multi = profiles.find(function(p){ return p.nome === 'GD2 com Fio B — múltiplos pontos'; });
+  return [
+    { id: uid(), nome:'Leandro', uc:'15930440', profileId: gd1.id,
+      overridesFixos: { precoBase: gd1.variaveis.find(function(v){return v.chave==='precoBase';}).valorPadrao,
+                        taxaBandeira: gd1.variaveis.find(function(v){return v.chave==='taxaBandeira';}).valorPadrao,
+                        desconto: 0.10 },
+      itensNomes: [], chavePix:'62997005920', banco:'Bradesco', beneficiario:'Iogo de Jesus Marques', condicaoPagamento:'Débito automático' },
+    { id: uid(), nome:'Aurélio', uc:'10036896150', profileId: multi.id,
+      overridesFixos: { precoBase: multi.variaveis.find(function(v){return v.chave==='precoBase';}).valorPadrao,
+                        taxaBandeira: multi.variaveis.find(function(v){return v.chave==='taxaBandeira';}).valorPadrao,
+                        desconto: 0.20 },
+      itensNomes: ['Casa','Beach Tennis'], chavePix:'', banco:'', beneficiario:'', condicaoPagamento:'Paga pelo cliente' }
+  ];
+}
+
+async function loadAll(){
+  var pRaw = await storageGet('usinas:v2:profiles');
+  var cRaw = await storageGet('usinas:v2:clients');
+  var qRaw = await storageGet('usinas:v2:quotes');
+  state.profiles = pRaw ? JSON.parse(pRaw) : [];
+  state.clients = cRaw ? JSON.parse(cRaw) : [];
+  state.quotes = qRaw ? JSON.parse(qRaw) : [];
+  if(state.profiles.length === 0){
+    state.profiles = presetsPadrao();
+    await saveProfiles();
+  }
+  if(state.clients.length === 0){
+    state.clients = seedClients(state.profiles);
+    await saveClients();
+  }
+  if(state.clients.length){ state.selectedClientId = state.clients[0].id; }
+}
+
+/* ============================================================
+   HELPERS DE DOMÍNIO
+   ============================================================ */
+function getProfile(id){ return state.profiles.find(function(p){ return p.id === id; }) || null; }
+function selectedClient(){ return state.clients.find(function(c){ return c.id === state.selectedClientId; }) || null; }
+
+function camposDisponiveisPerfil(profile){
+  /* retorna lista de {chave, rotulo, formato, editavel} disponíveis para o checklist de "visível ao cliente",
+     excluindo a chave do total final (mostrada sempre, à parte). Campos vindos de "variaveis" já têm rótulo
+     próprio (editavel:false); campos calculados pelas fórmulas usam rotulosCampos/formatosCampos do perfil
+     como personalização, caindo para a própria chave / 'moeda' como padrão (editavel:true). */
+  var lista = [];
+  (profile.variaveis||[]).forEach(function(v){ lista.push({chave:v.chave, rotulo:v.rotulo, formato:v.formato, editavel:false}); });
+  var linhasFormula = profile.possuiItensMultiplos
+    ? linhasExecutaveis(profile.formulasCompartilhadas).concat(linhasExecutaveis(profile.formulasFinais))
+    : linhasExecutaveis(profile.formulas);
+  var rotulosCampos = profile.rotulosCampos || {};
+  var formatosCampos = profile.formatosCampos || {};
+  linhasFormula.forEach(function(line){
+    var k = parseAssignKey(line);
+    if(k) lista.push({chave:k, rotulo: rotulosCampos[k] || k, formato: formatosCampos[k] || 'moeda', editavel:true});
+  });
+  return lista.filter(function(c){ return c.chave !== profile.chaveTotalFinal; });
+}
+function rotuloCampo(profile, chave){ return (profile.rotulosCampos && profile.rotulosCampos[chave]) || chave; }
+function formatoCampo(profile, chave){ return (profile.formatosCampos && profile.formatosCampos[chave]) || 'moeda'; }
+
+/* ============================================================
+   ÍCONES / SIDEBAR / TOPBAR / TABS
+   ============================================================ */
+function sunIconSvg(size){
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<circle cx="12" cy="12" r="4.6" fill="#E2992F"/>' +
+    '<g stroke="#E2992F" stroke-width="1.6" stroke-linecap="round">' +
+    '<line x1="12" y1="1.5" x2="12" y2="4.3"/><line x1="12" y1="19.7" x2="12" y2="22.5"/>' +
+    '<line x1="1.5" y1="12" x2="4.3" y2="12"/><line x1="19.7" y1="12" x2="22.5" y2="12"/>' +
+    '<line x1="4.4" y1="4.4" x2="6.4" y2="6.4"/><line x1="17.6" y1="17.6" x2="19.6" y2="19.6"/>' +
+    '<line x1="4.4" y1="19.6" x2="6.4" y2="17.6"/><line x1="17.6" y1="6.4" x2="19.6" y2="4.4"/>' +
+    '</g></svg>';
+}
+
+function renderSidebar(){
+  var el = document.getElementById('sidebar');
+  var rows = state.clients.map(function(c){
+    var active = c.id === state.selectedClientId ? ' active' : '';
+    var profile = getProfile(c.profileId);
+    var dotColor = (profile && profile.possuiItensMultiplos) ? 'var(--dot-multi)' : 'var(--dot-single)';
+    return '<div class="client-row' + active + '" data-action="select-client" data-id="' + c.id + '">' +
+      '<span class="client-dot" style="background:' + dotColor + '"></span>' +
+      '<span class="meta"><span class="nome">' + escapeHtml(c.nome) + '</span>' +
+      '<span class="uc">' + (c.uc ? 'UC ' + escapeHtml(c.uc) : 'sem UC') + '</span></span>' +
+      '<button class="edit-btn" data-action="edit-client" data-id="' + c.id + '" title="Editar cliente" aria-label="Editar cliente">' +
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' +
+      '</button></div>';
+  }).join('');
+  el.innerHTML =
+    '<div class="brand">' + sunIconSvg(26) + '<div class="brand-text"><b>Usinas</b><span>orçamentos de aluguel</span></div></div>' +
+    '<div class="side-label">Clientes</div>' +
+    '<div class="client-list">' + rows + '</div>' +
+    '<button class="btn-new-client" data-action="new-client">+ Novo cliente</button>';
+}
+
+function renderTopbar(){
+  var el = document.getElementById('topbar');
+  var c = selectedClient();
+  if(!c){
+    el.innerHTML = '<div><h1>Nenhum cliente selecionado</h1><div class="sub">Cadastre um cliente para começar a gerar orçamentos.</div></div>';
+    return;
+  }
+  var profile = getProfile(c.profileId);
+  var profileNome = profile ? profile.nome : '(perfil não encontrado — edite o cliente)';
+  el.innerHTML = '<div><h1>' + escapeHtml(c.nome) + '</h1>' +
+    '<div class="sub">' + (c.uc ? 'UC ' + escapeHtml(c.uc) + ' · ' : '') + 'Perfil: ' + escapeHtml(profileNome) + '</div></div>' +
+    '<button class="btn btn-ghost" data-action="edit-client" data-id="' + c.id + '">Editar dados do cliente</button>';
+}
+
+function renderTabs(){
+  var el = document.getElementById('tabs');
+  var hasClient = !!selectedClient();
+  var tabs = [ ['novo','Novo orçamento', !hasClient], ['historico','Histórico', !hasClient], ['perfis','Perfis de Faturamento', false], ['config','Configurações', false] ];
+  el.innerHTML = tabs.map(function(t){
+    var disabled = t[2] ? ' disabled' : '';
+    var active = state.activeTab === t[0] ? ' active' : '';
+    return '<button class="tab-btn' + active + '" data-action="set-tab" data-tab="' + t[0] + '"' + disabled + '>' + t[1] + '</button>';
+  }).join('');
+}
+function setTab(tab){ state.activeTab = tab; renderTabs(); renderTabContent(); }
+function selectClient(id){ state.selectedClientId = id; state.activeTab = 'novo'; state.lastDraft = null; renderAll(); }
+
+/* ============================================================
+   NOVO ORÇAMENTO
+   ============================================================ */
+function itemInputRowHtml(profile, nome, valores){
+  var rid = uid();
+  var fieldsHtml = (profile.itemVariaveis||[]).map(function(v){
+    var val = (valores && valores[v.chave]!==undefined) ? fmtNum(valores[v.chave]) : '';
+    return '<div class="field"><label>'+escapeHtml(v.rotulo)+'</label><input type="text" inputmode="decimal" class="item-val" data-chave="'+v.chave+'" value="'+val+'" placeholder="0,00"></div>';
+  }).join('');
+  return '<div class="ponto-row" data-ponto-id="'+rid+'">' +
+    '<div class="field f-nome"><label>Ponto</label><input type="text" class="item-nome" value="'+escapeHtml(nome||'')+'" placeholder="Ex.: Casa"></div>' +
+    fieldsHtml +
+    '<button type="button" class="rm-btn" data-action="remove-ponto" data-id="'+rid+'" title="Remover ponto">✕</button>' +
+  '</div>';
+}
+function addPontoRow(){
+  var wrap = document.getElementById('pontos-container');
+  var c = selectedClient(); var profile = getProfile(c.profileId);
+  if(!wrap || !profile) return;
+  wrap.insertAdjacentHTML('beforeend', itemInputRowHtml(profile, '', null));
+}
+function removePontoRow(id){
+  var wrap = document.getElementById('pontos-container');
+  if(!wrap) return;
+  var rows = wrap.querySelectorAll('.ponto-row');
+  if(rows.length <= 1){ toast('É preciso manter ao menos um ponto de consumo.'); return; }
+  var row = wrap.querySelector('.ponto-row[data-ponto-id="' + id + '"]');
+  if(row) row.remove();
+}
+
+function fixosEfetivos(client, profile){
+  var out = {};
+  (profile.variaveis||[]).filter(function(v){ return v.categoria === 'fixo'; }).forEach(function(v){
+    var override = client.overridesFixos ? client.overridesFixos[v.chave] : undefined;
+    out[v.chave] = (override !== undefined && override !== null) ? override : v.valorPadrao;
+  });
+  return out;
+}
+
+function renderNovoOrcamento(){
+  var container = document.getElementById('tab-content');
+  var c = selectedClient();
+  if(!c){
+    container.innerHTML = '<div class="empty-state"><p>Você ainda não tem nenhum cliente cadastrado.</p><button class="btn btn-primary" data-action="new-client">Cadastrar primeiro cliente</button></div>';
+    return;
+  }
+  var profile = getProfile(c.profileId);
+  if(!profile){
+    container.innerHTML = '<div class="empty-state"><p>O perfil de faturamento vinculado a este cliente não existe mais.</p><button class="btn btn-primary" data-action="edit-client" data-id="'+c.id+'">Escolher outro perfil</button></div>';
+    return;
+  }
+
+  var fixos = fixosEfetivos(c, profile);
+  var fixosHtml = Object.keys(fixos).map(function(chave){
+    var def = profile.variaveis.find(function(v){ return v.chave === chave; });
+    return '<div class="breakdown-row"><span class="lbl">' + escapeHtml(def.rotulo) + '</span><span class="val tabular">' + formatarValor(fixos[chave], def.formato) + '</span></div>';
+  }).join('');
+
+  var mensalVars = (profile.variaveis||[]).filter(function(v){ return v.categoria === 'mensal'; });
+  var camposComuns =
+    '<fieldset><legend>Referência</legend>' +
+      '<div class="field-row">' +
+        '<div class="field"><label>Mês de referência</label><input type="text" id="f-ref" value="' + refPadrao() + '"></div>' +
+        '<div class="field"><label>Ajuste do mês (R$)</label><input type="text" inputmode="decimal" id="f-ajuste" value="0,00"><span class="hint">Reduz o valor final. Use negativo para acrescentar.</span></div>' +
+      '</div>' +
+    '</fieldset>' +
+    '<details class="panel" style="cursor:pointer"><summary style="font-weight:600;cursor:pointer">Valores fixos aplicados a este cliente (definidos no perfil, editáveis em "Editar cliente")</summary>' +
+      '<div style="margin-top:10px">' + (fixosHtml || '<span style="color:var(--ink-soft);font-size:13px">Este perfil não possui variáveis fixas.</span>') + '</div>' +
+    '</details>';
+
+  var camposAdendo =
+    '<fieldset><legend>Observações / Adendo (entra no documento do cliente)</legend>' +
+      '<div class="field"><textarea id="f-observacoes" placeholder="Ex.: aviso de manutenção, ajuste pontual, condição do mês..."></textarea></div>' +
+    '</fieldset>';
+
+  var formHtml;
+  if(!profile.possuiItensMultiplos){
+    var camposMensaisHtml = mensalVars.map(function(v){
+      return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="0,00"></div>';
+    }).join('');
+    formHtml = camposComuns +
+      '<fieldset><legend>Dados do mês</legend>' + camposMensaisHtml + '</fieldset>' +
+      camposAdendo;
+  } else {
+    var pontosSeed = (c.itensNomes && c.itensNomes.length) ? c.itensNomes : ['Ponto 1'];
+    var pontosHtml = pontosSeed.map(function(nome){ return itemInputRowHtml(profile, nome, null); }).join('');
+    var camposCompartilhadosHtml = mensalVars.map(function(v){
+      return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="0,00"></div>';
+    }).join('');
+    formHtml = camposComuns +
+      (camposCompartilhadosHtml ? '<fieldset><legend>Dados compartilhados do mês</legend>' + camposCompartilhadosHtml + '</fieldset>' : '') +
+      '<fieldset><legend>Pontos de consumo</legend>' +
+        '<div id="pontos-container">' + pontosHtml + '</div>' +
+        '<button type="button" class="add-ponto-btn" data-action="add-ponto">+ Adicionar ponto</button>' +
+      '</fieldset>' +
+      camposAdendo;
+  }
+
+  container.innerHTML =
+    '<div class="quote-grid">' +
+      '<div class="quote-form-col">' + formHtml +
+        '<div class="btn-row"><button class="btn btn-primary" data-action="calcular">Calcular orçamento</button></div>' +
+      '</div>' +
+      '<div class="quote-preview-col" id="preview-col">' +
+        '<div class="panel" style="text-align:center;color:var(--ink-soft)">Preencha os dados e clique em <b>Calcular orçamento</b> para ver o resumo e o texto para o cliente.</div>' +
+      '</div>' +
+    '</div>';
+}
+
+function readMensaisFromForm(){
+  var out = {};
+  document.querySelectorAll('.in-mensal').forEach(function(inp){ out[inp.dataset.chave] = parseNumBR(inp.value); });
+  return out;
+}
+function readItemRows(){
+  var rows = document.querySelectorAll('#pontos-container .ponto-row');
+  var itens = [];
+  rows.forEach(function(row){
+    var nome = row.querySelector('.item-nome').value.trim() || 'Ponto';
+    var valores = {};
+    row.querySelectorAll('.item-val').forEach(function(inp){ valores[inp.dataset.chave] = parseNumBR(inp.value); });
+    itens.push(Object.assign({nome: nome}, valores));
+  });
+  return itens;
+}
+
+function onCalcular(){
+  var c = selectedClient(); if(!c) return;
+  var profile = getProfile(c.profileId); if(!profile) return;
+
+  var referencia = txt('f-ref') || refPadrao();
+  var ajuste = num('f-ajuste');
+  var observacoes = txt('f-observacoes');
+  var fixos = fixosEfetivos(c, profile);
+  var mensais = readMensaisFromForm();
+  var valoresEntrada = Object.assign({}, fixos, mensais, { ajuste: ajuste });
+
+  var itensInputRaw = profile.possuiItensMultiplos ? readItemRows() : null;
+
+  var resultado = avaliarPerfil(profile, valoresEntrada, itensInputRaw);
+  if(!resultado.ok){
+    toast('Erro na fórmula do perfil — ' + mensagemErroAvaliacao(resultado.erro));
+    return;
+  }
+
+  var camposVisiveis = profile.camposVisiveisCliente ? profile.camposVisiveisCliente.slice() : [];
+
+  state.lastDraft = {
+    clientId: c.id, profileId: profile.id, referencia: referencia,
+    valoresEntrada: Object.assign({}, mensais), ajuste: ajuste, observacoes: observacoes,
+    itens: itensInputRaw,
+    camposVisiveisEscolhidos: camposVisiveis,
+    scope: resultado.scope, itensResultado: resultado.itensResultado, chaveItemValor: resultado.chaveItemValor,
+    letter: ''
+  };
+  state.lastDraft.letter = buildLetter(c, profile, state.lastDraft);
+  renderPreview();
+}
+
+/* ============================================================
+   CARTA (TEXTO PARA O CLIENTE) — GERADA A PARTIR DO PERFIL
+   ============================================================ */
+function buildLetter(client, profile, draft){
+  var scope = draft.scope;
+  var linhas = [];
+  linhas.push('USINA ' + client.nome.toUpperCase() + (client.uc ? ' — UC ' + client.uc : ''));
+  linhas.push('');
+  var intro = (profile.textoIntroducao || '').replace('{referencia}', draft.referencia);
+  if(intro) { linhas.push(intro); linhas.push(''); }
+
+  var camposDisp = camposDisponiveisPerfil(profile);
+  camposDisp.forEach(function(campo){
+    if(draft.camposVisiveisEscolhidos.indexOf(campo.chave) === -1) return;
+    var val = scope[campo.chave];
+    linhas.push('• ' + campo.rotulo + ': ' + formatarValor(val, campo.formato));
+  });
+
+  if(profile.possuiItensMultiplos && draft.itensResultado){
+    var prefixo = profile.rotuloItemPrefixo || 'Injeção em ';
+    draft.itensResultado.forEach(function(item){
+      linhas.push('• ' + prefixo + item.nome + ': ' + fmtBRL(item[draft.chaveItemValor]));
+    });
+  }
+
+  if(Math.abs(draft.ajuste) > 0.004){ linhas.push('• Ajuste do mês: ' + fmtBRL(draft.ajuste)); }
+
+  linhas.push('');
+  if(draft.observacoes){ linhas.push(draft.observacoes); linhas.push(''); }
+
+  var totalVal = scope[profile.chaveTotalFinal];
+  linhas.push((profile.rotuloTotalCliente || 'VALOR FINAL A SER PAGO') + ': ' + fmtBRL(totalVal));
+  linhas.push('');
+  linhas.push('Chave Pix: ' + (client.chavePix || '—') + (client.banco ? ' (' + client.banco + ')' : ''));
+  linhas.push(client.beneficiario || '');
+  return linhas.join('\n');
+}
+
+/* ============================================================
+   PREVIEW: DASHBOARD DO GESTOR + DOCUMENTO DO CLIENTE
+   ============================================================ */
+function row(label, value, highlight){
+  return '<div class="breakdown-row' + (highlight ? ' savings' : '') + '"><span class="lbl">' + escapeHtml(label) + '</span><span class="val tabular">' + value + '</span></div>';
+}
+function rowTotal(label, value){
+  return '<div class="breakdown-row total"><span class="lbl">' + escapeHtml(label) + '</span><span class="val tabular">' + value + '</span></div>';
+}
+
+function renderPreview(){
+  var col = document.getElementById('preview-col');
+  if(!col || !state.lastDraft) return;
+  var d = state.lastDraft;
+  var profile = getProfile(d.profileId);
+  var scope = d.scope;
+
+  /* ---- Dashboard do Gestor (tudo, confidencial) ---- */
+  var dashHtml = '<div class="panel"><h2>Dashboard do gestor (uso interno)</h2>';
+  (profile.variaveis||[]).forEach(function(v){
+    dashHtml += row(v.rotulo, formatarValor(scope[v.chave], v.formato));
+  });
+  if(!profile.possuiItensMultiplos){
+    linhasExecutaveis(profile.formulas).forEach(function(line){
+      var k = parseAssignKey(line); if(!k || k === profile.chaveTotalFinal) return;
+      dashHtml += row(rotuloCampo(profile,k), formatarValor(scope[k], formatoCampo(profile,k)), k.toLowerCase().indexOf('desconto')>-1);
+    });
+  } else {
+    linhasExecutaveis(profile.formulasCompartilhadas).forEach(function(line){
+      var k = parseAssignKey(line); if(!k) return;
+      dashHtml += row(rotuloCampo(profile,k), formatarValor(scope[k], formatoCampo(profile,k)));
+    });
+    (d.itensResultado||[]).forEach(function(item){
+      dashHtml += '<div class="ponto-breakdown"><div class="nome">' + escapeHtml(item.nome) + '</div>';
+      (profile.itemVariaveis||[]).forEach(function(v){ dashHtml += row(v.rotulo, formatarValor(item[v.chave], v.formato)); });
+      dashHtml += row('Valor do item (' + d.chaveItemValor + ')', fmtBRL(item[d.chaveItemValor]), true);
+      dashHtml += '</div>';
+    });
+    linhasExecutaveis(profile.formulasFinais).forEach(function(line){
+      var k = parseAssignKey(line); if(!k || k === profile.chaveTotalFinal) return;
+      dashHtml += row(rotuloCampo(profile,k), formatarValor(scope[k], formatoCampo(profile,k)), k.toLowerCase().indexOf('desconto')>-1 || k==='liquidoTotal');
+    });
+  }
+  if(Math.abs(d.ajuste) > 0.004) dashHtml += row('Ajuste do mês', fmtBRL(d.ajuste));
+  dashHtml += rowTotal(profile.rotuloTotalCliente || 'Total final', fmtBRL(scope[profile.chaveTotalFinal]));
+  dashHtml += '</div>';
+
+  /* ---- Checklist de campos visíveis no documento do cliente ---- */
+  var camposDisp = camposDisponiveisPerfil(profile);
+  var checklistHtml = '<div class="panel"><h2>Campos visíveis no documento do cliente</h2><div class="checklist">' +
+    camposDisp.map(function(campo){
+      var checked = d.camposVisiveisEscolhidos.indexOf(campo.chave) > -1;
+      return '<label><input type="checkbox" class="campo-visivel-toggle" data-chave="' + campo.chave + '"' + (checked?' checked':'') + '> ' + escapeHtml(campo.rotulo) + '</label>';
+    }).join('') +
+    '</div><span class="hint" style="font-size:11.5px;color:var(--ink-soft);display:block;margin-top:8px">' +
+    (profile.possuiItensMultiplos ? 'Os pontos de consumo e o total sempre aparecem no documento; aqui você escolhe quais campos extras também aparecem.' : 'O valor final sempre aparece no documento; aqui você escolhe quais campos extras também aparecem.') +
+    '</span></div>';
+
+  var letterHtml =
+    '<div class="letter-card" id="letter-card">' +
+      '<h2>Texto para enviar ao cliente</h2>' +
+      '<textarea id="letter-text" spellcheck="false">' + escapeHtml(d.letter) + '</textarea>' +
+    '</div>' +
+    '<div class="btn-row">' +
+      '<button class="btn btn-primary" data-action="salvar-historico">Salvar no histórico</button>' +
+      '<button class="btn" data-action="copiar-carta">Copiar texto</button>' +
+      '<button class="btn" data-action="baixar-pdf">Baixar PDF</button>' +
+      '<button class="btn" data-action="baixar-doc">Baixar Word (.doc)</button>' +
+      '<button class="btn" data-action="baixar-txt">Baixar .txt</button>' +
+      '<button class="btn" data-action="imprimir">Imprimir</button>' +
+    '</div>';
+
+  col.innerHTML = letterHtml + checklistHtml + dashHtml;
+
+  var letterEl = document.getElementById('letter-text');
+  if(letterEl){
+    letterEl.addEventListener('input', function(){ state.lastDraft.letter = letterEl.value; });
+  }
+  document.querySelectorAll('.campo-visivel-toggle').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var chave = cb.dataset.chave;
+      var idx = state.lastDraft.camposVisiveisEscolhidos.indexOf(chave);
+      if(cb.checked && idx === -1) state.lastDraft.camposVisiveisEscolhidos.push(chave);
+      if(!cb.checked && idx > -1) state.lastDraft.camposVisiveisEscolhidos.splice(idx,1);
+      var client = selectedClient();
+      state.lastDraft.letter = buildLetter(client, profile, state.lastDraft);
+      var le = document.getElementById('letter-text');
+      if(le) le.value = state.lastDraft.letter;
+    });
+  });
+}
+
+/* ============================================================
+   HISTÓRICO
+   ============================================================ */
+async function onSalvarHistorico(){
+  if(!state.lastDraft){ toast('Calcule um orçamento antes de salvar.'); return; }
+  var q = Object.assign({ id: uid(), createdAt: new Date().toISOString() }, state.lastDraft);
+  state.quotes.unshift(q);
+  await saveQuotes();
+  toast('Orçamento salvo no histórico.');
+  if(state.activeTab === 'historico'){ renderTabContent(); }
+}
+function renderHistorico(){
+  var c = selectedClient();
+  var container = document.getElementById('tab-content');
+  if(!c){ container.innerHTML=''; return; }
+  var items = state.quotes.filter(function(q){ return q.clientId === c.id; });
+  if(items.length === 0){
+    container.innerHTML = '<div class="empty-state"><p>Ainda não há orçamentos salvos para ' + escapeHtml(c.nome) + '.</p></div>';
+    return;
+  }
+  container.innerHTML = items.map(function(q){
+    var data = new Date(q.createdAt).toLocaleDateString('pt-BR');
+    var totalStr = fmtBRL(q.scope[getProfile(q.profileId) ? getProfile(q.profileId).chaveTotalFinal : 'valorFinal']);
+    return '<div class="history-item"><div class="info"><b>' + escapeHtml(q.referencia) + ' — ' + totalStr + '</b>' +
+      '<span>Salvo em ' + data + '</span></div>' +
+      '<div class="btn-row">' +
+        '<button class="btn" data-action="duplicar-quote" data-id="' + q.id + '">Usar como base</button>' +
+        '<button class="btn btn-danger" data-action="delete-quote-confirm" data-id="' + q.id + '">Excluir</button>' +
+      '</div></div>';
+  }).join('');
+}
+function duplicarQuote(id){
+  var q = state.quotes.find(function(x){ return x.id === id; });
+  if(!q) return;
+  state.selectedClientId = q.clientId; state.activeTab = 'novo';
+  renderSidebar(); renderTopbar(); renderTabs(); renderNovoOrcamento();
+  setIf('f-ref', q.referencia);
+  setIf('f-ajuste', fmtNum(q.ajuste));
+  setIf('f-observacoes', q.observacoes);
+  Object.keys(q.valoresEntrada||{}).forEach(function(chave){
+    var el = document.querySelector('.in-mensal[data-chave="'+chave+'"]');
+    if(el) el.value = fmtNum(q.valoresEntrada[chave]);
+  });
+  if(q.itens && q.itens.length){
+    var profile = getProfile(q.profileId);
+    var wrap = document.getElementById('pontos-container');
+    if(wrap && profile){ wrap.innerHTML = q.itens.map(function(it){ return itemInputRowHtml(profile, it.nome, it); }).join(''); }
+  }
+  toast('Dados carregados. Ajuste os valores e clique em Calcular.');
+}
+async function deleteQuote(id){
+  state.quotes = state.quotes.filter(function(q){ return q.id !== id; });
+  await saveQuotes();
+  renderHistorico();
+  toast('Orçamento excluído.');
+}
+
+/* ============================================================
+   DOWNLOAD / CÓPIA / PDF
+   ============================================================ */
+function baixarTxt(texto, nomeArquivo){
+  var blob = new Blob([texto], { type:'text/plain;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = nomeArquivo + '.txt';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function textoParaHtmlParagrafos(texto){
+  return texto.split('\n\n').map(function(par){ return '<p style="margin:0 0 12pt 0;">' + escapeHtml(par).split('\n').join('<br>') + '</p>'; }).join('\n');
+}
+function baixarDoc(texto, nomeArquivo){
+  var html = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>" +
+    "<head><meta charset='utf-8'><title>Orçamento</title></head><body style=\"font-family:Georgia,serif; font-size:12pt;\">" + textoParaHtmlParagrafos(texto) + "</body></html>";
+  var blob = new Blob(['\ufeff', html], { type:'application/msword' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = nomeArquivo + '.doc';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+async function copiarTexto(texto){
+  try{ await navigator.clipboard.writeText(texto); toast('Texto copiado para a área de transferência.'); }
+  catch(e){ toast('Não deu para copiar automaticamente — selecione o texto e use Ctrl+C.'); }
+}
+var _jspdfLoading = null;
+function carregarJsPdf(){
+  if(window.jspdf) return Promise.resolve(true);
+  if(_jspdfLoading) return _jspdfLoading;
+  _jspdfLoading = new Promise(function(resolve){
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = function(){ resolve(!!window.jspdf); };
+    s.onerror = function(){ resolve(false); };
+    document.head.appendChild(s);
+    setTimeout(function(){ resolve(!!window.jspdf); }, 4000);
+  });
+  return _jspdfLoading;
+}
+async function baixarPdf(texto, nomeArquivo){
+  var ok = await carregarJsPdf();
+  if(!ok || !window.jspdf){
+    toast('Não deu para carregar o gerador de PDF agora. Use "Imprimir" e escolha "Salvar como PDF".');
+    return;
+  }
+  try{
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF({ unit:'pt', format:'a4' });
+    var marginX = 56, marginTop = 64, maxWidth = 483;
+    doc.setFont('times','normal'); doc.setFontSize(12);
+    var paragrafos = texto.split('\n');
+    var y = marginTop;
+    paragrafos.forEach(function(par){
+      if(par === ''){ y += 12; return; }
+      var linhas = doc.splitTextToSize(par, maxWidth);
+      linhas.forEach(function(linha){
+        if(y > 780){ doc.addPage(); y = marginTop; }
+        doc.text(linha, marginX, y);
+        y += 16;
+      });
+    });
+    doc.save(nomeArquivo + '.pdf');
+  }catch(e){
+    toast('Erro ao gerar o PDF. Use "Imprimir" e escolha "Salvar como PDF".');
+  }
+}
+
+function handleConfirmClick(el, cb){
+  if(el.dataset.confirming === '1'){ clearTimeout(el._confirmTimeout); cb(); }
+  else{
+    var original = el.textContent;
+    el.dataset.confirming = '1'; el.dataset.original = original; el.textContent = 'Confirmar exclusão';
+    el._confirmTimeout = setTimeout(function(){ el.dataset.confirming=''; el.textContent = el.dataset.original; }, 3000);
+  }
+}
+
+/* ============================================================
+   PERFIS DE FATURAMENTO — LISTA + EDITOR
+   ============================================================ */
+function varRowHtml(v, withCategoria){
+  v = v || {};
+  var rid = uid();
+  var categoriaHtml = withCategoria ? (
+    '<select class="v-categoria">' +
+      '<option value="mensal"'+(v.categoria==='mensal'?' selected':'')+'>Mensal</option>' +
+      '<option value="fixo"'+(v.categoria==='fixo'?' selected':'')+'>Fixo do perfil</option>' +
+    '</select>') : '';
+  return '<div class="var-row' + (withCategoria?'':' item-row') + '" data-var-id="' + rid + '">' +
+    '<input type="text" class="v-rotulo" placeholder="Rótulo (ex: Consumo do mês)" value="' + escapeHtml(v.rotulo||'') + '">' +
+    '<input type="text" class="v-chave" placeholder="chave" value="' + escapeHtml(v.chave||'') + '" data-touched="' + (v.chave?'1':'0') + '">' +
+    categoriaHtml +
+    '<input type="text" inputmode="decimal" class="v-padrao" placeholder="valor padrão" value="' + (v.valorPadrao!==undefined?fmtNum(v.valorPadrao):'0') + '">' +
+    '<select class="v-formato">' +
+      '<option value="moeda"'+(v.formato==='moeda'?' selected':'')+'>R$</option>' +
+      '<option value="kwh"'+(v.formato==='kwh'?' selected':'')+'>kWh</option>' +
+      '<option value="percentual"'+(v.formato==='percentual'?' selected':'')+'>%</option>' +
+      '<option value="numero"'+(v.formato==='numero'?' selected':'')+'>número</option>' +
+    '</select>' +
+    '<button type="button" class="rm-btn" data-action="'+(withCategoria?'remove-var-row':'remove-itemvar-row')+'" data-id="' + rid + '">✕</button>' +
+  '</div>';
+}
+function readVarRows(containerId, withCategoria){
+  var rows = document.querySelectorAll('#'+containerId+' .var-row');
+  var list = [];
+  rows.forEach(function(row){
+    var rotulo = row.querySelector('.v-rotulo').value.trim();
+    if(!rotulo) return;
+    var chave = row.querySelector('.v-chave').value.trim() || slugify(rotulo);
+    var categoriaEl = row.querySelector('.v-categoria');
+    var categoria = withCategoria && categoriaEl ? categoriaEl.value : 'mensal';
+    var valorPadrao = parseNumBR(row.querySelector('.v-padrao').value);
+    var formato = row.querySelector('.v-formato').value;
+    list.push({chave:chave, rotulo:rotulo, categoria:categoria, valorPadrao:valorPadrao, formato:formato});
+  });
+  return list;
+}
+
+function renderPerfis(){
+  var container = document.getElementById('tab-content');
+  if(state.editingProfileId !== undefined && state.editingProfileId !== null && state.editingProfileId !== false){
+    renderProfileEditor(state.editingProfileId === 'new' ? null : getProfile(state.editingProfileId));
+    return;
+  }
+  var cardsHtml = state.profiles.map(function(p){
+    var emUso = state.clients.some(function(c){ return c.profileId === p.id; });
+    return '<div class="profile-card"><div class="head"><div>' +
+      '<h3>' + escapeHtml(p.nome) + ' <span class="pill ' + (p.possuiItensMultiplos?'multi':'single') + '">' + (p.possuiItensMultiplos?'múltiplos pontos':'ponto único') + '</span>' + (p.isPreset ? ' <span class="pill">modelo padrão</span>' : '') + '</h3>' +
+      '<p class="desc">' + escapeHtml(p.descricao||'') + '</p></div>' +
+      '<div class="btn-row">' +
+        (p.isPreset ? '<button class="btn btn-sm" data-action="duplicate-profile" data-id="'+p.id+'">Duplicar para editar</button>'
+                    : '<button class="btn btn-sm" data-action="edit-profile" data-id="'+p.id+'">Editar</button>' +
+                      '<button class="btn btn-sm" data-action="duplicate-profile" data-id="'+p.id+'">Duplicar</button>' +
+                      (emUso ? '' : '<button class="btn btn-sm btn-danger" data-action="delete-profile-confirm" data-id="'+p.id+'">Excluir</button>')) +
+      '</div></div></div>';
+  }).join('');
+  container.innerHTML = '<div class="btn-row" style="margin-bottom:14px"><button class="btn btn-primary" data-action="new-profile">+ Novo modelo do zero</button></div>' + cardsHtml;
+}
+
+function novoPerfilVazio(){
+  return {
+    id: null, isPreset:false, nome:'', descricao:'', possuiItensMultiplos:false,
+    variaveis: [{chave:'valorFaturaImpresso', rotulo:'Valor da fatura (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'}],
+    formulas: ['valorFinal = valorFaturaImpresso - ajuste'],
+    formulasCompartilhadas: ['precoComDesconto = 0'],
+    itemVariaveis: [{chave:'consumoKwh', rotulo:'Consumo do ponto (kWh)', valorPadrao:0, formato:'kwh'}],
+    itemFormula: 'valorItem = consumoKwh * precoComDesconto',
+    formulasFinais: ['liquidoTotal = sum(itens_valorItem)', 'valorFinal = liquidoTotal - ajuste'],
+    chaveTotalFinal: 'valorFinal', rotuloTotalCliente: 'VALOR FINAL A SER PAGO', rotuloItemPrefixo: 'Injeção em ',
+    camposVisiveisCliente: [], textoIntroducao: 'Segue o resumo do orçamento de {referencia}:'
+  };
+}
+
+function renderProfileEditor(profile, overrideDraft){
+  var isNew = (state.editingProfileId === 'new');
+  var p = overrideDraft ? overrideDraft : (profile ? JSON.parse(JSON.stringify(profile)) : novoPerfilVazio());
+  var container = document.getElementById('tab-content');
+  var varsHeader = '<div class="var-header"><span>Rótulo</span><span>Chave</span><span>Categoria</span><span>Valor padrão</span><span>Formato</span><span></span></div>';
+  var varsRows = (p.variaveis||[]).map(function(v){ return varRowHtml(v, true); }).join('');
+  var itemVarsHeader = '<div class="var-header item-header"><span>Rótulo</span><span>Chave</span><span>Valor padrão</span><span>Formato</span><span></span></div>';
+  var itemVarsRows = (p.itemVariaveis||[]).map(function(v){ return varRowHtml(v, false); }).join('');
+
+  var multiSection = '';
+  if(p.possuiItensMultiplos){
+    multiSection =
+      '<fieldset><legend>Fórmulas compartilhadas (calculadas uma vez, antes dos itens)</legend>' +
+        '<div class="formula-box"><textarea id="pe-formulas-compartilhadas" spellcheck="false">' + escapeHtml((p.formulasCompartilhadas||[]).join('\n')) + '</textarea>' +
+        '<span class="hint">Uma atribuição por linha, ex.: precoComDesconto = precoBase*(1-desconto) + taxaBandeira</span></div>' +
+      '</fieldset>' +
+      '<fieldset><legend>Variáveis por item (preenchidas a cada ponto de consumo)</legend>' +
+        '<div id="pe-item-vars">' + itemVarsHeader + itemVarsRows + '</div>' +
+        '<button type="button" class="add-var-btn" data-action="add-itemvar-row">+ Adicionar variável do item</button>' +
+      '</fieldset>' +
+      '<fieldset><legend>Fórmula do item (uma linha, roda para cada ponto)</legend>' +
+        '<div class="formula-box"><input type="text" id="pe-item-formula" style="font-family:var(--mono);width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:3px" value="' + escapeHtml(p.itemFormula||'') + '">' +
+        '<span class="hint">Ex.: valorItem = consumoKwh*precoComDesconto - fioB</span></div>' +
+      '</fieldset>' +
+      '<fieldset><legend>Fórmulas finais (após somar os itens)</legend>' +
+        '<div class="formula-box"><textarea id="pe-formulas-finais" spellcheck="false">' + escapeHtml((p.formulasFinais||[]).join('\n')) + '</textarea>' +
+        '<span class="hint">Use itens_&lt;chave&gt; para agregações, ex.: sum(itens_valorItem). Variável sempre disponível: ajuste.</span></div>' +
+      '</fieldset>' +
+      '<div class="field"><label>Rótulo de cada item no documento do cliente</label><input type="text" id="pe-rotulo-item" value="' + escapeHtml(p.rotuloItemPrefixo||'Injeção em ') + '"><span class="hint">Aparece antes do nome do ponto, ex.: "Injeção em Casa: R$ ..."</span></div>';
+  } else {
+    multiSection =
+      '<fieldset><legend>Fórmulas (uma atribuição por linha, executadas em ordem)</legend>' +
+        '<div class="formula-box"><textarea id="pe-formulas" spellcheck="false">' + escapeHtml((p.formulas||[]).join('\n')) + '</textarea>' +
+        '<span class="hint">Ex.: precoComDesconto = precoBase*(1-desconto) + taxaBandeira · use se(condição, a, b) para if/else · variável sempre disponível: ajuste</span></div>' +
+      '</fieldset>';
+  }
+
+  container.innerHTML =
+    '<div class="panel">' +
+      '<div class="field-row">' +
+        '<div class="field"><label>Nome do modelo</label><input type="text" id="pe-nome" value="' + escapeHtml(p.nome) + '"></div>' +
+        '<div class="field"><label>Descrição</label><input type="text" id="pe-descricao" value="' + escapeHtml(p.descricao) + '"></div>' +
+      '</div>' +
+      '<label class="checkbox-field"><input type="checkbox" id="pe-multiplos"' + (p.possuiItensMultiplos?' checked':'') + '> Este modelo tem múltiplos pontos de consumo compartilhando a mesma injeção</label>' +
+    '</div>' +
+    '<fieldset><legend>Variáveis' + (p.possuiItensMultiplos?' compartilhadas':'') + '</legend>' +
+      '<div id="pe-vars">' + varsHeader + varsRows + '</div>' +
+      '<button type="button" class="add-var-btn" data-action="add-var-row">+ Adicionar variável</button>' +
+    '</fieldset>' +
+    multiSection +
+    '<div class="panel">' +
+      '<div class="btn-row"><button class="btn" data-action="testar-formulas">Testar fórmulas</button></div>' +
+      '<div id="pe-test-result"></div>' +
+    '</div>' +
+    '<div class="panel">' +
+      '<div class="field"><label>Qual variável representa o valor final a pagar?</label><select id="pe-total-final"></select></div>' +
+      '<div class="field"><label>Rótulo do total no documento do cliente</label><input type="text" id="pe-rotulo-total" value="' + escapeHtml(p.rotuloTotalCliente||'VALOR FINAL A SER PAGO') + '"></div>' +
+      '<div class="field"><label>Quais campos aparecem por padrão no documento do cliente?</label>' +
+        '<div id="pe-campos-visiveis" class="checklist"><span class="hint">Clique em "Testar fórmulas" acima para atualizar esta lista.</span></div></div>' +
+      '<div class="field"><label>Texto de introdução da carta</label><textarea id="pe-intro">' + escapeHtml(p.textoIntroducao||'') + '</textarea><span class="hint">Use {referencia} para o mês, ex.: "...fatura de {referencia}:"</span></div>' +
+    '</div>' +
+    '<div class="btn-row">' +
+      '<button class="btn btn-ghost" data-action="cancel-edit-profile">Cancelar</button>' +
+      '<button class="btn btn-primary" data-action="save-profile" data-new="'+(isNew?'1':'0')+'">' + (isNew ? 'Salvar como novo modelo' : 'Salvar alterações') + '</button>' +
+    '</div>';
+
+  popularSelectTotalFinal(p);
+  popularChecklistCampos(p, p.camposVisiveisCliente||[]);
+  document.getElementById('pe-multiplos').addEventListener('change', function(e){
+    toggleMultiploFields(e.target.checked, profile);
+  });
+}
+
+/* Alternar "ponto único" <-> "múltiplos pontos" troca a seção de fórmulas por um preset
+   correspondente (as fórmulas de um modo não fazem sentido no outro), mas preserva
+   nome/descrição já digitados e, principalmente, preserva qual perfil está sendo editado
+   (via state.editingProfileId, nunca via p.id) para que "Salvar" continue atualizando o
+   perfil certo em vez de criar um duplicado. */
+function toggleMultiploFields(isMulti, profileOriginal){
+  var nome = txt('pe-nome');
+  var descricao = txt('pe-descricao');
+  var novoDraft = isMulti ? presetGD2ComFioBMultiplos() : presetGD1();
+  novoDraft.nome = nome;
+  novoDraft.descricao = descricao;
+  novoDraft.isPreset = false;
+  renderProfileEditor(profileOriginal, novoDraft);
+}
+
+function lerProfileDoFormulario(){
+  var isMulti = document.getElementById('pe-multiplos') ? document.getElementById('pe-multiplos').checked : false;
+  var p = {
+    nome: txt('pe-nome'), descricao: txt('pe-descricao'), possuiItensMultiplos: isMulti,
+    variaveis: readVarRows('pe-vars', true),
+    rotuloTotalCliente: txt('pe-rotulo-total') || 'VALOR FINAL A SER PAGO',
+    textoIntroducao: txt('pe-intro')
+  };
+  if(isMulti){
+    var fc = document.getElementById('pe-formulas-compartilhadas');
+    p.formulasCompartilhadas = fc ? fc.value.split('\n') : [];
+    p.itemVariaveis = document.getElementById('pe-item-vars') ? readVarRows('pe-item-vars', false) : [];
+    var ifEl = document.getElementById('pe-item-formula');
+    p.itemFormula = ifEl ? ifEl.value : '';
+    var ff = document.getElementById('pe-formulas-finais');
+    p.formulasFinais = ff ? ff.value.split('\n') : [];
+    var riEl = document.getElementById('pe-rotulo-item');
+    p.rotuloItemPrefixo = riEl ? riEl.value : 'Injeção em ';
+    p.formulas = [];
+  } else {
+    var fe = document.getElementById('pe-formulas');
+    p.formulas = fe ? fe.value.split('\n') : [];
+    p.formulasCompartilhadas = []; p.itemVariaveis = []; p.itemFormula = ''; p.formulasFinais = [];
+  }
+  var totalSel = document.getElementById('pe-total-final');
+  p.chaveTotalFinal = totalSel ? totalSel.value : '';
+  p.camposVisiveisCliente = Array.prototype.slice.call(document.querySelectorAll('.campo-visivel-editor:checked')).map(function(cb){ return cb.dataset.chave; });
+  var rotulosCampos = {}, formatosCampos = {};
+  document.querySelectorAll('.campo-rotulo-editor').forEach(function(inp){ rotulosCampos[inp.dataset.chave] = inp.value.trim() || inp.dataset.chave; });
+  document.querySelectorAll('.campo-formato-editor').forEach(function(sel){ formatosCampos[sel.dataset.chave] = sel.value; });
+  p.rotulosCampos = rotulosCampos;
+  p.formatosCampos = formatosCampos;
+  return p;
+}
+
+function popularSelectTotalFinal(p){
+  var sel = document.getElementById('pe-total-final');
+  if(!sel) return;
+  var chaves = [];
+  (p.variaveis||[]).forEach(function(v){ chaves.push(v.chave); });
+  var linhas = p.possuiItensMultiplos
+    ? linhasExecutaveis(p.formulasCompartilhadas).concat(linhasExecutaveis(p.formulasFinais))
+    : linhasExecutaveis(p.formulas);
+  linhas.forEach(function(line){ var k = parseAssignKey(line); if(k && chaves.indexOf(k)===-1) chaves.push(k); });
+  sel.innerHTML = chaves.map(function(k){ return '<option value="'+k+'"'+(k===p.chaveTotalFinal?' selected':'')+'>'+k+'</option>'; }).join('');
+  if(!p.chaveTotalFinal && chaves.length){ sel.value = chaves[chaves.length-1]; }
+}
+function popularChecklistCampos(p, selecionados){
+  var el = document.getElementById('pe-campos-visiveis');
+  if(!el) return;
+  var campos = camposDisponiveisPerfil(p);
+  if(campos.length === 0){ el.innerHTML = '<span class="hint">Nenhum campo disponível ainda — escreva as fórmulas e clique em "Testar fórmulas".</span>'; return; }
+  el.innerHTML = campos.map(function(c){
+    var checked = selecionados.indexOf(c.chave) > -1;
+    if(!c.editavel){
+      return '<label><input type="checkbox" class="campo-visivel-editor" data-chave="'+c.chave+'"'+(checked?' checked':'')+'> ' + escapeHtml(c.rotulo) + ' <span class="mono" style="color:var(--ink-soft);font-size:11px">(' + c.chave + ')</span></label>';
+    }
+    /* campo calculado por fórmula: rótulo e formato de exibição são editáveis */
+    return '<div style="display:flex;align-items:center;gap:6px;">' +
+      '<input type="checkbox" class="campo-visivel-editor" data-chave="'+c.chave+'"'+(checked?' checked':'')+'>' +
+      '<input type="text" class="campo-rotulo-editor" data-chave="'+c.chave+'" value="'+escapeHtml(c.rotulo)+'" placeholder="Rótulo para o cliente" style="flex:1;padding:5px 7px;border:1px solid var(--line);border-radius:3px;font-size:12.5px">' +
+      '<select class="campo-formato-editor" data-chave="'+c.chave+'" style="padding:5px 6px;border:1px solid var(--line);border-radius:3px;font-size:12px">' +
+        '<option value="moeda"'+(c.formato==='moeda'?' selected':'')+'>R$</option>' +
+        '<option value="kwh"'+(c.formato==='kwh'?' selected':'')+'>kWh</option>' +
+        '<option value="percentual"'+(c.formato==='percentual'?' selected':'')+'>%</option>' +
+        '<option value="numero"'+(c.formato==='numero'?' selected':'')+'>número</option>' +
+      '</select>' +
+      '<span class="mono" style="color:var(--ink-soft);font-size:11px;white-space:nowrap">(' + c.chave + ')</span>' +
+    '</div>';
+  }).join('');
+}
+
+function onTestarFormulas(){
+  var p = lerProfileDoFormulario();
+  var resultEl = document.getElementById('pe-test-result');
+  var valoresEntrada = {};
+  (p.variaveis||[]).forEach(function(v){ valoresEntrada[v.chave] = v.valorPadrao; });
+  valoresEntrada.ajuste = 0;
+  var itensInput = null;
+  if(p.possuiItensMultiplos){
+    var itemVals = {}; (p.itemVariaveis||[]).forEach(function(v){ itemVals[v.chave] = v.valorPadrao; });
+    itensInput = [ Object.assign({nome:'Item de teste 1'}, itemVals), Object.assign({nome:'Item de teste 2'}, itemVals) ];
+  }
+  var resultado = avaliarPerfil(p, valoresEntrada, itensInput);
+  var selectedBefore = document.getElementById('pe-total-final') ? document.getElementById('pe-total-final').value : p.chaveTotalFinal;
+  p.chaveTotalFinal = selectedBefore;
+  popularSelectTotalFinal(p);
+  var selecionadosAntes = Array.prototype.slice.call(document.querySelectorAll('.campo-visivel-editor:checked')).map(function(cb){ return cb.dataset.chave; });
+  popularChecklistCampos(p, selecionadosAntes);
+
+  if(!resultado.ok){
+    resultEl.innerHTML = '<div class="test-result error">' + escapeHtml(mensagemErroAvaliacao(resultado.erro)) + '</div>';
+    return;
+  }
+  var linhasResultado = Object.keys(resultado.scope).filter(function(k){ return k.indexOf('itens_')!==0; })
+    .map(function(k){ return '<div class="kv"><span>'+k+'</span><span>'+ (typeof resultado.scope[k]==='number' ? resultado.scope[k].toFixed(4) : resultado.scope[k]) +'</span></div>'; }).join('');
+  resultEl.innerHTML = '<div class="test-result success">Fórmulas OK com os valores padrão.</div>' + linhasResultado;
+}
+
+function addVarRow(){ var wrap = document.getElementById('pe-vars'); if(wrap) wrap.insertAdjacentHTML('beforeend', varRowHtml(null, true)); }
+function removeVarRow(id){ var el = document.querySelector('#pe-vars .var-row[data-var-id="'+id+'"]'); if(el) el.remove(); }
+function addItemVarRow(){ var wrap = document.getElementById('pe-item-vars'); if(wrap) wrap.insertAdjacentHTML('beforeend', varRowHtml(null, false)); }
+function removeItemVarRow(id){ var el = document.querySelector('#pe-item-vars .var-row[data-var-id="'+id+'"]'); if(el) el.remove(); }
+
+async function onSaveProfile(isNew){
+  var p = lerProfileDoFormulario();
+  if(!p.nome){ toast('Dê um nome ao modelo.'); return; }
+  if(!p.chaveTotalFinal){ toast('Escolha qual variável representa o valor final a pagar.'); return; }
+  p.isPreset = false;
+  if(isNew){ p.id = uid(); state.profiles.push(p); }
+  else {
+    var idx = state.profiles.findIndex(function(x){ return x.id === state.editingProfileId; });
+    p.id = state.editingProfileId;
+    if(idx > -1) state.profiles[idx] = p;
+  }
+  await saveProfiles();
+  state.editingProfileId = null;
+  renderTabContent();
+  toast('Modelo salvo.');
+}
+function onCancelEditProfile(){ state.editingProfileId = null; renderTabContent(); }
+function onNewProfile(){ state.editingProfileId = 'new'; renderTabContent(); }
+function onEditProfile(id){ state.editingProfileId = id; renderTabContent(); }
+async function onDuplicateProfile(id){
+  var orig = getProfile(id); if(!orig) return;
+  var copia = JSON.parse(JSON.stringify(orig));
+  copia.id = uid(); copia.isPreset = false; copia.nome = orig.nome + ' (cópia)';
+  state.profiles.push(copia);
+  await saveProfiles();
+  state.editingProfileId = copia.id;
+  renderTabContent();
+  toast('Modelo duplicado — edite e salve como seu.');
+}
+async function onDeleteProfile(id){
+  state.profiles = state.profiles.filter(function(p){ return p.id !== id; });
+  await saveProfiles();
+  renderTabContent();
+  toast('Modelo excluído.');
+}
+
+/* ============================================================
+   CONFIGURAÇÕES
+   ============================================================ */
+function renderConfig(){
+  var container = document.getElementById('tab-content');
+  container.innerHTML =
+    '<div class="panel" style="max-width:520px">' +
+      '<h2>Dados</h2>' +
+      '<p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px">Clientes, perfis de faturamento e orçamentos ficam salvos de forma privada, associados apenas à sua conta — ninguém mais tem acesso a esses dados.</p>' +
+      '<button class="btn btn-danger" data-action="reset-all-confirm">Apagar todos os dados e restaurar modelos padrão</button>' +
+    '</div>';
+}
+async function resetAllData(){
+  state.profiles = presetsPadrao();
+  await saveProfiles();
+  state.clients = seedClients(state.profiles);
+  await saveClients();
+  state.quotes = [];
+  await saveQuotes();
+  state.selectedClientId = state.clients[0].id;
+  state.activeTab = 'novo'; state.editingProfileId = null;
+  renderAll();
+  toast('Todos os dados foram apagados e os modelos padrão restaurados.');
+}
+
+/* ============================================================
+   MODAL DE CLIENTE
+   ============================================================ */
+function renderClientOverridesFixos(profile, overridesAtuais){
+  if(!profile) return '<span class="hint">Selecione um perfil.</span>';
+  var fixos = (profile.variaveis||[]).filter(function(v){ return v.categoria === 'fixo'; });
+  if(fixos.length === 0) return '<span class="hint">Este perfil não possui variáveis fixas para ajustar por cliente.</span>';
+  return fixos.map(function(v){
+    var val = (overridesAtuais && overridesAtuais[v.chave] !== undefined) ? overridesAtuais[v.chave] : v.valorPadrao;
+    return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="m-fixo" data-chave="' + v.chave + '" value="' + fmtNum(val) + '"></div>';
+  }).join('');
+}
+
+function openClientModal(id){
+  var editing = id ? state.clients.find(function(c){ return c.id === id; }) : null;
+  var root = document.getElementById('modal-root');
+  var profileAtual = editing ? getProfile(editing.profileId) : (state.profiles[0]||null);
+
+  root.innerHTML =
+    '<div class="modal-overlay" data-action="close-modal-bg">' +
+      '<div class="modal" data-stop-close style="max-width:560px">' +
+        '<button class="modal-close" data-action="close-modal" aria-label="Fechar">✕</button>' +
+        '<h2>' + (editing ? 'Editar cliente' : 'Novo cliente') + '</h2>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Nome do cliente</label><input type="text" id="m-nome" value="' + (editing?escapeHtml(editing.nome):'') + '" placeholder="Ex.: Leandro"></div>' +
+          '<div class="field"><label>Código da usina / UC (opcional)</label><input type="text" id="m-uc" value="' + (editing?escapeHtml(editing.uc):'') + '"></div>' +
+        '</div>' +
+        '<div class="field"><label>Perfil de faturamento</label><select id="m-profile">' +
+          state.profiles.map(function(p){ return '<option value="'+p.id+'"'+(profileAtual&&p.id===profileAtual.id?' selected':'')+'>'+escapeHtml(p.nome)+'</option>'; }).join('') +
+        '</select></div>' +
+        '<div class="field" id="m-fixos-wrap"><label>Valores fixos deste cliente</label><div id="m-fixos">' + renderClientOverridesFixos(profileAtual, editing?editing.overridesFixos:null) + '</div></div>' +
+        '<div class="field" id="m-pontos-field" style="' + (profileAtual&&profileAtual.possuiItensMultiplos?'':'display:none') + '">' +
+          '<label>Nomes dos pontos (um por linha)</label>' +
+          '<textarea id="m-pontos" placeholder="Casa\nBeach Tennis">' + escapeHtml(editing&&editing.itensNomes?editing.itensNomes.join('\n'):'') + '</textarea>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Chave Pix</label><input type="text" id="m-pix" value="' + (editing?escapeHtml(editing.chavePix):'') + '"></div>' +
+          '<div class="field"><label>Banco</label><input type="text" id="m-banco" value="' + (editing?escapeHtml(editing.banco):'') + '"></div>' +
+        '</div>' +
+        '<div class="field"><label>Nome do beneficiário (para o Pix)</label><input type="text" id="m-beneficiario" value="' + (editing?escapeHtml(editing.beneficiario):'') + '"></div>' +
+        '<div class="field"><label>Condição de pagamento (opcional, uso interno)</label><input type="text" id="m-condicao" value="' + (editing?escapeHtml(editing.condicaoPagamento):'') + '" placeholder="Ex.: Débito automático"></div>' +
+        '<div class="btn-row" style="justify-content:space-between;margin-top:8px">' +
+          (editing ? '<button class="btn btn-danger" data-action="delete-client-confirm" data-id="' + editing.id + '">Excluir cliente</button>' : '<span></span>') +
+          '<button class="btn btn-primary" data-action="save-client" data-id="' + (editing?editing.id:'') + '">Salvar</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('m-profile').addEventListener('change', function(e){
+    var novoProfile = getProfile(e.target.value);
+    document.getElementById('m-fixos').innerHTML = renderClientOverridesFixos(novoProfile, null);
+    document.getElementById('m-pontos-field').style.display = (novoProfile && novoProfile.possuiItensMultiplos) ? '' : 'none';
+  });
+}
+function closeModal(){ document.getElementById('modal-root').innerHTML = ''; }
+
+async function saveClientFromModal(existingId){
+  var nome = txt('m-nome');
+  if(!nome){ toast('Informe o nome do cliente.'); return; }
+  var profileId = document.getElementById('m-profile').value;
+  var overridesFixos = {};
+  document.querySelectorAll('.m-fixo').forEach(function(inp){ overridesFixos[inp.dataset.chave] = parseNumBR(inp.value); });
+  var pontosTexto = txt('m-pontos');
+  var itensNomes = pontosTexto ? pontosTexto.split('\n').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+
+  var data = {
+    id: existingId || uid(), nome: nome, uc: txt('m-uc'), profileId: profileId,
+    overridesFixos: overridesFixos, itensNomes: itensNomes,
+    chavePix: txt('m-pix'), banco: txt('m-banco'), beneficiario: txt('m-beneficiario'), condicaoPagamento: txt('m-condicao')
+  };
+  if(existingId){
+    var idx = state.clients.findIndex(function(c){ return c.id === existingId; });
+    if(idx > -1) state.clients[idx] = data;
+  } else { state.clients.push(data); }
+  await saveClients();
+  state.selectedClientId = data.id;
+  closeModal(); renderAll();
+  toast('Cliente salvo.');
+}
+async function deleteClient(id){
+  state.clients = state.clients.filter(function(c){ return c.id !== id; });
+  state.quotes = state.quotes.filter(function(q){ return q.clientId !== id; });
+  await saveClients(); await saveQuotes();
+  if(state.selectedClientId === id){ state.selectedClientId = state.clients.length ? state.clients[0].id : null; }
+  closeModal(); renderAll();
+  toast('Cliente excluído.');
+}
+
+/* ============================================================
+   RENDER GERAL
+   ============================================================ */
+function renderTabContent(){
+  if(state.activeTab === 'novo') renderNovoOrcamento();
+  else if(state.activeTab === 'historico') renderHistorico();
+  else if(state.activeTab === 'perfis') renderPerfis();
+  else renderConfig();
+}
+function renderAll(){ renderSidebar(); renderTopbar(); renderTabs(); renderTabContent(); }
+
+/* ============================================================
+   EVENTOS (DELEGAÇÃO)
+   ============================================================ */
+document.addEventListener('input', function(e){
+  if(e.target.classList && e.target.classList.contains('v-rotulo')){
+    var row = e.target.closest('.var-row');
+    var chaveInput = row ? row.querySelector('.v-chave') : null;
+    if(chaveInput && chaveInput.dataset.touched !== '1'){ chaveInput.value = slugify(e.target.value); }
+  }
+  if(e.target.classList && e.target.classList.contains('v-chave')){ e.target.dataset.touched = '1'; }
+});
+
+document.addEventListener('click', function(e){
+  var overlay = e.target.closest('[data-action="close-modal-bg"]');
+  if(overlay && !e.target.closest('[data-stop-close]')){ closeModal(); return; }
+
+  var el = e.target.closest('[data-action]');
+  if(!el) return;
+  var action = el.dataset.action;
+  var id = el.dataset.id;
+
+  switch(action){
+    case 'select-client': selectClient(id); break;
+    case 'new-client': openClientModal(null); break;
+    case 'edit-client': openClientModal(id); break;
+    case 'delete-client-confirm': handleConfirmClick(el, function(){ deleteClient(id); }); break;
+    case 'close-modal': closeModal(); break;
+    case 'save-client': saveClientFromModal(id || null); break;
+    case 'set-tab': setTab(el.dataset.tab); break;
+
+    case 'add-ponto': addPontoRow(); break;
+    case 'remove-ponto': removePontoRow(id); break;
+    case 'calcular': onCalcular(); break;
+    case 'salvar-historico': onSalvarHistorico(); break;
+    case 'copiar-carta': copiarTexto(state.lastDraft ? state.lastDraft.letter : ''); break;
+    case 'baixar-txt': baixarTxt(state.lastDraft ? state.lastDraft.letter : '', 'orcamento-' + (state.lastDraft?state.lastDraft.referencia:'')); break;
+    case 'baixar-doc': baixarDoc(state.lastDraft ? state.lastDraft.letter : '', 'orcamento-' + (state.lastDraft?state.lastDraft.referencia:'')); break;
+    case 'baixar-pdf': baixarPdf(state.lastDraft ? state.lastDraft.letter : '', 'orcamento-' + (state.lastDraft?state.lastDraft.referencia:'')); break;
+    case 'imprimir': window.print(); break;
+
+    case 'duplicar-quote': duplicarQuote(id); break;
+    case 'delete-quote-confirm': handleConfirmClick(el, function(){ deleteQuote(id); }); break;
+
+    case 'new-profile': onNewProfile(); break;
+    case 'edit-profile': onEditProfile(id); break;
+    case 'duplicate-profile': onDuplicateProfile(id); break;
+    case 'delete-profile-confirm': handleConfirmClick(el, function(){ onDeleteProfile(id); }); break;
+    case 'cancel-edit-profile': onCancelEditProfile(); break;
+    case 'save-profile': onSaveProfile(el.dataset.new === '1'); break;
+    case 'testar-formulas': onTestarFormulas(); break;
+    case 'add-var-row': addVarRow(); break;
+    case 'remove-var-row': removeVarRow(id); break;
+    case 'add-itemvar-row': addItemVarRow(); break;
+    case 'remove-itemvar-row': removeItemVarRow(id); break;
+
+    case 'reset-all-confirm': handleConfirmClick(el, function(){ resetAllData(); }); break;
+  }
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+(async function init(){
+  await loadAll();
+  renderAll();
+})();
+
+})();
+</script>
+</body>
+</html>
