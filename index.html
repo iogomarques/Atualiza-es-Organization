@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Orçamentos de Aluguel de Usinas</title>
+<title>Solar Organization</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     --bg: #EEF1E9;
@@ -150,6 +151,20 @@
   #toast-root{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:100; }
   .toast{ background: var(--ink); color:#fff; padding:10px 18px; border-radius: var(--radius-s); font-size:13.5px; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 80vw; }
 
+  /* ---- Tela de login / cadastro ---- */
+  .auth-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; background: var(--bg); padding:20px; }
+  .auth-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); box-shadow: var(--shadow-lift); padding: 36px 32px; width:100%; max-width:380px; }
+  .auth-card .brand{ margin-bottom:24px; justify-content:center; }
+  .auth-card h1{ font-family: var(--serif); font-size:20px; margin:0 0 4px; text-align:center; }
+  .auth-card .sub{ text-align:center; color:var(--ink-soft); font-size:13px; margin-bottom:22px; }
+  .auth-tabs{ display:flex; margin-bottom:20px; border-bottom:1px solid var(--line); }
+  .auth-tab-btn{ flex:1; background:none; border:none; padding:9px; cursor:pointer; color:var(--ink-soft); border-bottom:2px solid transparent; }
+  .auth-tab-btn.active{ color:var(--ink); font-weight:600; border-bottom-color:var(--accent); }
+  .auth-msg{ font-size:12.5px; padding:9px 10px; border-radius: var(--radius-s); margin-bottom:12px; }
+  .auth-msg.error{ background: var(--alert-soft); color: var(--alert); }
+  .auth-msg.info{ background: var(--savings-soft); color: var(--savings); }
+  .auth-config-warning{ max-width:520px; margin:60px auto; text-align:center; padding:28px; border:1px dashed var(--alert); border-radius:var(--radius-s); color:var(--alert); }
+
   /* ---- Perfis ---- */
   .profile-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 14px 16px; margin-bottom:10px; }
   .profile-card .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; }
@@ -195,7 +210,9 @@
 </head>
 <body>
 
-<div class="app">
+<div id="auth-root"></div>
+
+<div class="app" id="app-root" style="display:none">
   <aside class="sidebar" id="sidebar"></aside>
   <main class="main">
     <div class="topbar" id="topbar"></div>
@@ -494,22 +511,53 @@ var state = {
   lastDraft: null
 };
 
-/* Funciona tanto dentro do chat da Claude (usa window.storage, privado por conta) quanto
-   hospedado como site comum (usa localStorage do navegador, privado por dispositivo/navegador). */
-var TEM_STORAGE_CLAUDE = (typeof window !== 'undefined') && window.storage && typeof window.storage.get === 'function';
+/* ============================================================
+   SUPABASE (autenticação + armazenamento por usuário)
+   ============================================================
+   Preencha os dois valores abaixo com os dados do SEU projeto Supabase
+   (Painel do Supabase > Settings > API). O anon key é seguro para expor
+   no navegador — a segurança real vem das políticas de Row Level Security
+   configuradas no banco (veja o arquivo setup-supabase.sql), não deste valor.
+*/
+var SUPABASE_URL = 'COLE_AQUI_A_URL_DO_SEU_PROJETO_SUPABASE';
+var SUPABASE_ANON_KEY = 'COLE_AQUI_A_ANON_KEY_DO_SEU_PROJETO_SUPABASE';
+var SUPABASE_CONFIGURADO = SUPABASE_URL.indexOf('COLE_AQUI') === -1 && SUPABASE_ANON_KEY.indexOf('COLE_AQUI') === -1;
+var SUPABASE_SDK_OK = (typeof window !== 'undefined') && window.supabase && typeof window.supabase.createClient === 'function';
+var supabaseClient = (SUPABASE_CONFIGURADO && SUPABASE_SDK_OK) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
+var currentUser = null; /* preenchido após login; cada tabela é isolada por user_id via RLS no banco */
+
+var TABLE_FOR_KEY = {
+  'usinas:v2:profiles': 'perfis_faturamento',
+  'usinas:v2:clients': 'clientes',
+  'usinas:v2:quotes': 'orcamentos'
+};
+
+/* Mantém a MESMA interface de antes (storageGet/storageSet operando em "chaves" com um
+   JSON como valor) para que todo o resto do app continue funcionando sem alterações —
+   só a implementação por trás troca de localStorage para uma tabela do Supabase,
+   uma linha por usuário, protegida por Row Level Security. */
 async function storageGet(key){
+  var table = TABLE_FOR_KEY[key];
+  if(!table || !supabaseClient || !currentUser) return null;
   try{
-    if(TEM_STORAGE_CLAUDE){ var r = await window.storage.get(key, false); return r ? r.value : null; }
-    return window.localStorage.getItem(key);
-  }catch(e){ return null; }
+    var resp = await supabaseClient.from(table).select('data').eq('user_id', currentUser.id).maybeSingle();
+    if(resp.error){ console.error(resp.error); return null; }
+    return resp.data ? JSON.stringify(resp.data.data) : null;
+  }catch(e){ console.error(e); return null; }
 }
 async function storageSet(key, value){
+  var table = TABLE_FOR_KEY[key];
+  if(!table || !supabaseClient || !currentUser) return false;
   try{
-    if(TEM_STORAGE_CLAUDE){ await window.storage.set(key, value, false); return true; }
-    window.localStorage.setItem(key, value);
+    var parsed = JSON.parse(value);
+    var resp = await supabaseClient.from(table).upsert(
+      { user_id: currentUser.id, data: parsed, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    );
+    if(resp.error){ console.error(resp.error); return false; }
     return true;
-  }catch(e){ return false; }
+  }catch(e){ console.error(e); return false; }
 }
 async function saveProfiles(){ await storageSet('usinas:v2:profiles', JSON.stringify(state.profiles)); }
 async function saveClients(){ await storageSet('usinas:v2:clients', JSON.stringify(state.clients)); }
@@ -668,19 +716,14 @@ function presetGD2ComFioBMultiplos(){
 function presetsPadrao(){ return [ presetGD1(), presetGD2SemFioB(), presetGD2ComFioBUnico(), presetGD2ComFioBMultiplos() ]; }
 
 function seedClients(profiles){
+  /* No máximo UM cliente de exemplo, sempre fictício — nunca dados reais de clientes. */
   var gd1 = profiles.find(function(p){ return p.nome === 'GD1 (padrão, sem Fio B)'; });
-  var multi = profiles.find(function(p){ return p.nome === 'GD2 com Fio B — múltiplos pontos'; });
   return [
-    { id: uid(), nome:'Leandro', uc:'15930440', profileId: gd1.id,
+    { id: uid(), nome:'Cliente Exemplo', uc:'', profileId: gd1.id,
       overridesFixos: { precoBase: gd1.variaveis.find(function(v){return v.chave==='precoBase';}).valorPadrao,
                         taxaBandeira: gd1.variaveis.find(function(v){return v.chave==='taxaBandeira';}).valorPadrao,
                         desconto: 0.10 },
-      itensNomes: [], chavePix:'62997005920', banco:'Bradesco', beneficiario:'Iogo de Jesus Marques', condicaoPagamento:'Débito automático' },
-    { id: uid(), nome:'Aurélio', uc:'10036896150', profileId: multi.id,
-      overridesFixos: { precoBase: multi.variaveis.find(function(v){return v.chave==='precoBase';}).valorPadrao,
-                        taxaBandeira: multi.variaveis.find(function(v){return v.chave==='taxaBandeira';}).valorPadrao,
-                        desconto: 0.20 },
-      itensNomes: ['Casa','Beach Tennis'], chavePix:'', banco:'', beneficiario:'', condicaoPagamento:'Paga pelo cliente' }
+      itensNomes: [], chavePix:'', banco:'', beneficiario:'', condicaoPagamento:'' }
   ];
 }
 
@@ -758,7 +801,7 @@ function renderSidebar(){
       '</button></div>';
   }).join('');
   el.innerHTML =
-    '<div class="brand">' + sunIconSvg(26) + '<div class="brand-text"><b>Usinas</b><span>orçamentos de aluguel</span></div></div>' +
+    '<div class="brand">' + sunIconSvg(26) + '<div class="brand-text"><b>Solar Organization</b><span>' + escapeHtml(currentUser?currentUser.email:'') + '</span></div></div>' +
     '<div class="side-label">Clientes</div>' +
     '<div class="client-list">' + rows + '</div>' +
     '<button class="btn-new-client" data-action="new-client">+ Novo cliente</button>';
@@ -1525,9 +1568,13 @@ function renderConfig(){
   var container = document.getElementById('tab-content');
   container.innerHTML =
     '<div class="panel" style="max-width:520px">' +
+      '<h2>Sua conta</h2>' +
+      '<p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px">Conectado como <b>' + escapeHtml(currentUser?currentUser.email:'') + '</b>. Clientes, perfis de faturamento e orçamentos ficam salvos no banco de dados vinculados só a esta conta — nenhum outro usuário do site consegue ler ou alterar esses dados.</p>' +
+      '<button class="btn" data-action="sign-out">Sair da conta</button>' +
+    '</div>' +
+    '<div class="panel" style="max-width:520px">' +
       '<h2>Dados</h2>' +
-      '<p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px">Clientes, perfis de faturamento e orçamentos ficam salvos de forma privada, associados apenas à sua conta — ninguém mais tem acesso a esses dados.</p>' +
-      '<button class="btn btn-danger" data-action="reset-all-confirm">Apagar todos os dados e restaurar modelos padrão</button>' +
+      '<button class="btn btn-danger" data-action="reset-all-confirm">Apagar todos os meus dados e restaurar modelos padrão</button>' +
     '</div>';
 }
 async function resetAllData(){
@@ -1632,6 +1679,86 @@ async function deleteClient(id){
 }
 
 /* ============================================================
+   AUTENTICAÇÃO (Supabase Auth)
+   ============================================================ */
+var authMode = 'signin'; /* 'signin' | 'signup' */
+var authMsg = null; /* {tipo:'error'|'info', texto} */
+
+function renderAuthConfigWarning(motivo){
+  var texto = motivo === 'sdk'
+    ? '<p>A biblioteca do Supabase não carregou (conexão instável, bloqueador de scripts, ou o CDN está fora do ar). Verifique sua internet e recarregue a página.</p>'
+    : '<p>Este arquivo precisa da URL e da anon key do seu projeto Supabase para funcionar. Abra o arquivo, procure por <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> perto do início do &lt;script&gt;, e cole os valores do seu projeto (Painel do Supabase → Settings → API). Depois, rode o script <code>setup-supabase.sql</code> uma vez no SQL Editor do Supabase.</p>';
+  document.getElementById('auth-root').innerHTML =
+    '<div class="auth-config-warning">' +
+      '<h2 style="font-family:var(--serif);margin-top:0">' + (motivo==='sdk' ? 'Não foi possível carregar o Supabase' : 'Supabase ainda não configurado') + '</h2>' +
+      texto +
+    '</div>';
+  document.getElementById('app-root').style.display = 'none';
+}
+
+function renderAuthScreen(){
+  var msgHtml = authMsg ? '<div class="auth-msg ' + authMsg.tipo + '">' + escapeHtml(authMsg.texto) + '</div>' : '';
+  document.getElementById('auth-root').innerHTML =
+    '<div class="auth-screen"><div class="auth-card">' +
+      '<div class="brand">' + sunIconSvg(28) + '<div class="brand-text"><b>Solar Organization</b><span>orçamentos de aluguel de usinas</span></div></div>' +
+      '<div class="auth-tabs">' +
+        '<button class="auth-tab-btn' + (authMode==='signin'?' active':'') + '" data-action="auth-set-mode" data-mode="signin">Entrar</button>' +
+        '<button class="auth-tab-btn' + (authMode==='signup'?' active':'') + '" data-action="auth-set-mode" data-mode="signup">Criar conta</button>' +
+      '</div>' +
+      msgHtml +
+      '<div class="field"><label>E-mail</label><input type="text" id="auth-email" autocomplete="username" placeholder="voce@exemplo.com"></div>' +
+      '<div class="field"><label>Senha</label><input type="password" id="auth-password" autocomplete="' + (authMode==='signin'?'current-password':'new-password') + '" placeholder="••••••••"></div>' +
+      '<div class="btn-row"><button class="btn btn-primary btn-block" style="width:100%;justify-content:center" data-action="' + (authMode==='signin'?'sign-in':'sign-up') + '">' + (authMode==='signin'?'Entrar':'Criar conta') + '</button></div>' +
+    '</div></div>';
+  document.getElementById('app-root').style.display = 'none';
+}
+
+function setAuthMode(mode){ authMode = mode; authMsg = null; renderAuthScreen(); }
+
+async function onSignIn(){
+  var email = txt('auth-email'), senha = document.getElementById('auth-password').value;
+  if(!email || !senha){ authMsg = {tipo:'error', texto:'Preencha e-mail e senha.'}; renderAuthScreen(); return; }
+  var resp = await supabaseClient.auth.signInWithPassword({ email: email, password: senha });
+  if(resp.error){ authMsg = {tipo:'error', texto: resp.error.message}; renderAuthScreen(); return; }
+  /* onAuthStateChange cuida do resto (carregar dados e mostrar o app) */
+}
+async function onSignUp(){
+  var email = txt('auth-email'), senha = document.getElementById('auth-password').value;
+  if(!email || !senha){ authMsg = {tipo:'error', texto:'Preencha e-mail e senha.'}; renderAuthScreen(); return; }
+  if(senha.length < 6){ authMsg = {tipo:'error', texto:'A senha precisa ter pelo menos 6 caracteres.'}; renderAuthScreen(); return; }
+  var resp = await supabaseClient.auth.signUp({ email: email, password: senha });
+  if(resp.error){ authMsg = {tipo:'error', texto: resp.error.message}; renderAuthScreen(); return; }
+  if(resp.data && resp.data.user && !resp.data.session){
+    authMsg = {tipo:'info', texto:'Conta criada! Verifique seu e-mail para confirmar antes de entrar.'};
+    authMode = 'signin';
+    renderAuthScreen();
+  }
+  /* se a confirmação por e-mail estiver desativada no projeto, já vem uma sessão pronta
+     e onAuthStateChange cuida de mostrar o app automaticamente. */
+}
+async function onSignOut(){
+  await supabaseClient.auth.signOut();
+  /* onAuthStateChange cuida de limpar o estado e voltar pra tela de login */
+}
+
+async function aoLogar(user){
+  currentUser = user;
+  document.getElementById('auth-root').innerHTML = '';
+  document.getElementById('app-root').style.display = '';
+  state.profiles = []; state.clients = []; state.quotes = [];
+  state.selectedClientId = null; state.activeTab = 'novo'; state.editingProfileId = null; state.lastDraft = null;
+  await loadAll();
+  renderAll();
+}
+function aoDeslogar(){
+  currentUser = null;
+  state.profiles = []; state.clients = []; state.quotes = [];
+  state.selectedClientId = null; state.lastDraft = null;
+  authMsg = null; authMode = 'signin';
+  renderAuthScreen();
+}
+
+/* ============================================================
    RENDER GERAL
    ============================================================ */
 function renderTabContent(){
@@ -1664,6 +1791,11 @@ document.addEventListener('click', function(e){
   var id = el.dataset.id;
 
   switch(action){
+    case 'auth-set-mode': setAuthMode(el.dataset.mode); break;
+    case 'sign-in': onSignIn(); break;
+    case 'sign-up': onSignUp(); break;
+    case 'sign-out': onSignOut(); break;
+
     case 'select-client': selectClient(id); break;
     case 'new-client': openClientModal(null); break;
     case 'edit-client': openClientModal(id); break;
@@ -1705,8 +1837,23 @@ document.addEventListener('click', function(e){
    INIT
    ============================================================ */
 (async function init(){
-  await loadAll();
-  renderAll();
+  if(!SUPABASE_CONFIGURADO){ renderAuthConfigWarning('config'); return; }
+  if(!SUPABASE_SDK_OK){ renderAuthConfigWarning('sdk'); return; }
+
+  supabaseClient.auth.onAuthStateChange(function(event, session){
+    if(session && session.user){
+      if(!currentUser || currentUser.id !== session.user.id){ aoLogar(session.user); }
+    } else {
+      if(currentUser){ aoDeslogar(); } else { renderAuthScreen(); }
+    }
+  });
+
+  var sessionResp = await supabaseClient.auth.getSession();
+  if(sessionResp.data && sessionResp.data.session && sessionResp.data.session.user){
+    await aoLogar(sessionResp.data.session.user);
+  } else {
+    renderAuthScreen();
+  }
 })();
 
 })();
