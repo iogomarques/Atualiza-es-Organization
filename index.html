@@ -519,8 +519,8 @@ var state = {
    no navegador — a segurança real vem das políticas de Row Level Security
    configuradas no banco (veja o arquivo setup-supabase.sql), não deste valor.
 */
-var SUPABASE_URL = 'https://zhkolwskpqhlovvdrbmv.supabase.co';
-var SUPABASE_ANON_KEY = 'sb_publishable_3bqhMMM6CndF6MKl5N1FoA_GaS_mq7E';
+var SUPABASE_URL = 'COLE_AQUI_A_URL_DO_SEU_PROJETO_SUPABASE';
+var SUPABASE_ANON_KEY = 'COLE_AQUI_A_ANON_KEY_DO_SEU_PROJETO_SUPABASE';
 var SUPABASE_CONFIGURADO = SUPABASE_URL.indexOf('COLE_AQUI') === -1 && SUPABASE_ANON_KEY.indexOf('COLE_AQUI') === -1;
 var SUPABASE_SDK_OK = (typeof window !== 'undefined') && window.supabase && typeof window.supabase.createClient === 'function';
 var supabaseClient = (SUPABASE_CONFIGURADO && SUPABASE_SDK_OK) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
@@ -572,24 +572,29 @@ function presetGD1(){
     descricao: 'Modelo padrão para geração distribuída ciclo GD1: um único ponto de consumo, sem cobrança de Fio B sobre a energia injetada.',
     possuiItensMultiplos: false,
     variaveis: [
-      {chave:'precoBase', rotulo:'Preço base do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
+      {chave:'precoBase', rotulo:'Preço do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
       {chave:'taxaBandeira', rotulo:'Taxa de bandeira por kWh', categoria:'fixo', valorPadrao:0.025054, formato:'moeda'},
       {chave:'desconto', rotulo:'Desconto concedido (decimal — 0.10 = 10%)', categoria:'fixo', valorPadrao:0.10, formato:'percentual'},
-      {chave:'injecaoKwh', rotulo:'Injeção solar do mês', categoria:'mensal', valorPadrao:0, formato:'kwh'},
-      {chave:'consumoKwh', rotulo:'Consumo do mês', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'consumoTotal', rotulo:'Consumo total (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'injecaoTotal', rotulo:'Injeção total (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'saldoDelta', rotulo:'Saldo — variação do mês (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'injecaoNaConta', rotulo:'Injeção que aparece na conta (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'energiaAtiva', rotulo:'Energia ativa (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'fioB', rotulo:'Fio B (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'adicionalBandeira', rotulo:'Adicional de bandeira (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'gastoNaoCompensado', rotulo:'Gasto não compensado (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'iluminacao', rotulo:'Iluminação pública (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'adicionais', rotulo:'Adicionais (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'multas', rotulo:'Multas (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'valorFaturaImpresso', rotulo:'Valor da fatura impresso na conta (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
+      {chave:'valorFaturaImpresso', rotulo:'Valor da fatura (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
     ],
     formulas: [
       'precoSemDesconto = precoBase + taxaBandeira',
       'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
-      'contaEnergiaRS = precoSemDesconto * consumoKwh',
-      'injecaoSemDescontoRS = precoSemDesconto * injecaoKwh',
-      'injecaoComDescontoRS = precoComDesconto * injecaoKwh',
+      'injecaoEfetiva = injecaoTotal - saldoDelta',
+      'contaEnergiaRS = precoSemDesconto * consumoTotal',
+      'injecaoSemDescontoRS = precoSemDesconto * injecaoEfetiva',
+      'injecaoComDescontoRS = precoComDesconto * injecaoEfetiva - fioB',
       'multasEAdicionais = multas + adicionais',
       'somaComponentes = adicionalBandeira + gastoNaoCompensado + iluminacao + adicionais + multas',
       'valorSemSolar = valorFaturaImpresso + contaEnergiaRS',
@@ -601,11 +606,12 @@ function presetGD1(){
     ],
     chaveTotalFinal: 'valorFinal',
     rotuloTotalCliente: 'VALOR COM SOLAR E TOTAL A SER PAGO',
-    camposVisiveisCliente: ['injecaoKwh','valorFaturaImpresso','multasEAdicionais','valorSemSolar'],
+    camposVisiveisCliente: ['injecaoTotal','valorFaturaImpresso','multasEAdicionais','valorSemSolar'],
     rotulosCampos: {
       precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
+      injecaoEfetiva:'Injeção efetiva (já descontado o saldo)',
       contaEnergiaRS:'Conta de energia (tarifa cheia)', injecaoSemDescontoRS:'Injeção em R$ sem desconto',
-      injecaoComDescontoRS:'Injeção em R$ com desconto', multasEAdicionais:'Multas e adicionais',
+      injecaoComDescontoRS:'Injeção em R$ com desconto (líquido de Fio B)', multasEAdicionais:'Multas e adicionais',
       somaComponentes:'Soma dos componentes da fatura', valorSemSolar:'Valor sem solar',
       valorComSolar:'Valor com solar (antes do ajuste)', descontoRS:'Desconto concedido em R$',
       descontoReal:'Desconto real', lucroFinal:'Receita da usina (lucro)'
@@ -622,81 +628,53 @@ function presetGD2SemFioB(){
   return p;
 }
 function presetGD2ComFioBUnico(){
-  return {
-    id: uid(), isPreset: true, nome: 'GD2 com Fio B (ponto único)',
-    descricao: 'Um único ponto de consumo, com dedução do Fio B sobre o valor da energia injetada.',
-    possuiItensMultiplos: false,
-    variaveis: [
-      {chave:'precoBase', rotulo:'Preço base do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
-      {chave:'taxaBandeira', rotulo:'Taxa de bandeira por kWh', categoria:'fixo', valorPadrao:0.025054, formato:'moeda'},
-      {chave:'desconto', rotulo:'Desconto concedido (decimal — 0.10 = 10%)', categoria:'fixo', valorPadrao:0.10, formato:'percentual'},
-      {chave:'injecaoKwh', rotulo:'Injeção solar do mês', categoria:'mensal', valorPadrao:0, formato:'kwh'},
-      {chave:'consumoKwh', rotulo:'Consumo do mês', categoria:'mensal', valorPadrao:0, formato:'kwh'},
-      {chave:'fioB', rotulo:'Fio B do mês (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'adicionalBandeira', rotulo:'Adicional de bandeira (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'gastoNaoCompensado', rotulo:'Gasto não compensado (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'iluminacao', rotulo:'Iluminação pública (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'adicionais', rotulo:'Adicionais (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'multas', rotulo:'Multas (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'valorFaturaImpresso', rotulo:'Valor da fatura impresso na conta (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
-    ],
-    formulas: [
-      'precoSemDesconto = precoBase + taxaBandeira',
-      'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
-      'contaEnergiaRS = precoSemDesconto * consumoKwh',
-      'injecaoSemDescontoRS = precoSemDesconto * injecaoKwh',
-      'injecaoComDescontoRS = precoComDesconto * injecaoKwh - fioB',
-      'multasEAdicionais = multas + adicionais',
-      'somaComponentes = adicionalBandeira + gastoNaoCompensado + iluminacao + adicionais + multas',
-      'valorSemSolar = valorFaturaImpresso + contaEnergiaRS',
-      'valorComSolar = injecaoComDescontoRS + valorFaturaImpresso',
-      'descontoRS = injecaoSemDescontoRS - injecaoComDescontoRS',
-      'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)',
-      'valorFinal = valorComSolar - ajuste',
-      'lucroFinal = injecaoComDescontoRS'
-    ],
-    chaveTotalFinal: 'valorFinal',
-    rotuloTotalCliente: 'VALOR COM SOLAR E TOTAL A SER PAGO',
-    camposVisiveisCliente: ['injecaoKwh','valorFaturaImpresso','multasEAdicionais','valorSemSolar'],
-    rotulosCampos: {
-      precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
-      contaEnergiaRS:'Conta de energia (tarifa cheia)', injecaoSemDescontoRS:'Injeção em R$ sem desconto',
-      injecaoComDescontoRS:'Injeção em R$ com desconto (líquido de Fio B)', multasEAdicionais:'Multas e adicionais',
-      somaComponentes:'Soma dos componentes da fatura', valorSemSolar:'Valor sem solar',
-      valorComSolar:'Valor com solar (antes do ajuste)', descontoRS:'Desconto concedido em R$',
-      descontoReal:'Desconto real', lucroFinal:'Receita da usina (lucro)'
-    },
-    formatosCampos: { descontoReal:'percentual' },
-    textoIntroducao: 'O preço da geração foi calculado com base no consumo não compensado, na bandeira tarifária vigente e no Fio B aplicável. Segue o resumo da fatura de {referencia}:'
-  };
+  var p = presetGD1();
+  p.id = uid();
+  p.nome = 'GD2 com Fio B (ponto único)';
+  p.descricao = 'Um único ponto de consumo, com dedução do Fio B (rateado pela energia ativa) sobre o valor da energia injetada.';
+  return p;
 }
 function presetGD2ComFioBMultiplos(){
   return {
     id: uid(), isPreset: true, nome: 'GD2 com Fio B — múltiplos pontos',
-    descricao: 'Vários pontos de consumo (ex.: casa + comercial) dividindo a mesma injeção solar, cada um com seu próprio Fio B.',
+    descricao: 'Vários pontos de consumo (ex.: casa + comercial) dividindo a mesma injeção solar. O Fio B é rateado automaticamente pelo consumo de cada ponto (com base na energia ativa da fatura), mas pode ser sobrescrito manualmente por ponto quando um deles tiver o Fio B informado na própria conta.',
     possuiItensMultiplos: true,
     variaveis: [
-      {chave:'precoBase', rotulo:'Preço base do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
+      {chave:'precoBase', rotulo:'Preço do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
       {chave:'taxaBandeira', rotulo:'Taxa de bandeira por kWh', categoria:'fixo', valorPadrao:0.025054, formato:'moeda'},
-      {chave:'desconto', rotulo:'Desconto concedido (decimal — 0.10 = 10%)', categoria:'fixo', valorPadrao:0.10, formato:'percentual'},
-      {chave:'valorFaturaInfo', rotulo:'Valor da fatura da concessionária (opcional, informativo)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
+      {chave:'desconto', rotulo:'Desconto concedido (decimal — 0.10 = 10%)', categoria:'fixo', valorPadrao:0.20, formato:'percentual'},
+      {chave:'consumoTotal', rotulo:'Consumo total (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'injecaoTotal', rotulo:'Injeção total (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'saldoDelta', rotulo:'Saldo — variação do mês (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'injecaoNaConta', rotulo:'Injeção que aparece na conta (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'energiaAtiva', rotulo:'Energia ativa (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'fioB', rotulo:'Fio B total da fatura (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'iluminacao', rotulo:'Iluminação pública (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'adicionais', rotulo:'Adicionais (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'adicionalBandeira', rotulo:'Adicional de bandeira (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'gastoNaoCompensado', rotulo:'Gasto não compensado (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'valorFaturaInfo', rotulo:'Valor da fatura da concessionária (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
     ],
     formulasCompartilhadas: [
       'precoSemDesconto = precoBase + taxaBandeira',
-      'precoComDesconto = precoBase*(1-desconto) + taxaBandeira'
+      'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
+      'injecaoEfetiva = injecaoTotal - saldoDelta',
+      'valorFioBPorKwh = se(energiaAtiva > 0, fioB/energiaAtiva, 0)',
+      'injecaoSemDescontoRS = injecaoEfetiva * precoSemDesconto',
+      'injecaoComDescontoRS = injecaoEfetiva * precoComDesconto',
+      'valorSemSolar = consumoTotal * precoSemDesconto',
+      'descontoRS = injecaoSemDescontoRS - injecaoComDescontoRS',
+      'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)'
     ],
     itemVariaveis: [
       {chave:'consumoKwh', rotulo:'Consumo do ponto (kWh)', valorPadrao:0, formato:'kwh'},
-      {chave:'fioB', rotulo:'Fio B do ponto (R$)', valorPadrao:0, formato:'moeda'}
+      {chave:'fioBManual', rotulo:'Fio B deste ponto (R$) — deixe 0 para ratear automaticamente', valorPadrao:0, formato:'moeda'}
     ],
-    itemFormula: 'valorItem = consumoKwh*precoComDesconto - fioB',
+    itemFormula: 'valorItem = consumoKwh*precoComDesconto - se(fioBManual > 0, fioBManual, consumoKwh*valorFioBPorKwh)',
     formulasFinais: [
-      'consumoTotal = sum(itens_consumoKwh)',
+      'consumoAlocadoTotal = sum(itens_consumoKwh)',
       'liquidoTotal = sum(itens_valorItem)',
-      'contaEnergiaRS = precoSemDesconto * consumoTotal',
-      'valorSemSolar = se(valorFaturaInfo > 0, valorFaturaInfo + contaEnergiaRS, 0)',
-      'valorComSolar = se(valorFaturaInfo > 0, valorFaturaInfo + liquidoTotal, 0)',
-      'descontoReal = se(valorSemSolar > 0, (valorSemSolar - valorComSolar) / valorSemSolar, 0)',
+      'valorComSolar = liquidoTotal',
       'valorFinal = liquidoTotal - ajuste'
     ],
     chaveTotalFinal: 'valorFinal',
@@ -705,9 +683,11 @@ function presetGD2ComFioBMultiplos(){
     camposVisiveisCliente: [],
     rotulosCampos: {
       precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
-      consumoTotal:'Consumo total (todos os pontos)', liquidoTotal:'Total líquido (todos os pontos)',
-      contaEnergiaRS:'Conta de energia (tarifa cheia)', valorSemSolar:'Valor sem solar (informativo)',
-      valorComSolar:'Valor com solar (informativo)', descontoReal:'Desconto real'
+      injecaoEfetiva:'Injeção efetiva (já descontado o saldo)', valorFioBPorKwh:'Fio B por kWh (rateio)',
+      injecaoSemDescontoRS:'Injeção em R$ sem desconto', injecaoComDescontoRS:'Injeção em R$ com desconto (antes do Fio B)',
+      valorSemSolar:'Valor sem solar', descontoRS:'Desconto concedido em R$', descontoReal:'Desconto real',
+      consumoAlocadoTotal:'Consumo total alocado nos pontos', liquidoTotal:'Total líquido (todos os pontos)',
+      valorComSolar:'Valor com solar (líquido de Fio B)'
     },
     formatosCampos: { descontoReal:'percentual' },
     textoIntroducao: 'Segue o resumo da injeção solar do mês de {referencia}, separado por ponto de consumo. Os valores já estão descontados do Fio B de cada ponto.'
@@ -1573,9 +1553,33 @@ function renderConfig(){
       '<button class="btn" data-action="sign-out">Sair da conta</button>' +
     '</div>' +
     '<div class="panel" style="max-width:520px">' +
+      '<h2>Modelos padrão</h2>' +
+      '<p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px">Quando o GD1/GD2 padrão do site é corrigido ou melhorado, use este botão para atualizar os modelos que você ainda não personalizou. Clientes vinculados a um modelo padrão passam a usar a versão corrigida automaticamente. Modelos que você já duplicou e editou não são alterados.</p>' +
+      '<button class="btn btn-primary" data-action="atualizar-modelos-padrao">Atualizar modelos padrão (GD1 / GD2)</button>' +
+    '</div>' +
+    '<div class="panel" style="max-width:520px">' +
       '<h2>Dados</h2>' +
       '<button class="btn btn-danger" data-action="reset-all-confirm">Apagar todos os meus dados e restaurar modelos padrão</button>' +
     '</div>';
+}
+async function atualizarModelosPadrao(){
+  var novos = presetsPadrao();
+  var atualizados = 0, adicionados = 0;
+  novos.forEach(function(np){
+    var existente = state.profiles.find(function(p){ return p.isPreset && p.nome === np.nome; });
+    if(existente){
+      np.id = existente.id; /* preserva o id: clientes já vinculados continuam apontando certo */
+      var idx = state.profiles.indexOf(existente);
+      state.profiles[idx] = np;
+      atualizados++;
+    } else {
+      state.profiles.push(np);
+      adicionados++;
+    }
+  });
+  await saveProfiles();
+  renderTabContent();
+  toast('Modelos padrão atualizados (' + atualizados + ' corrigidos, ' + adicionados + ' novos). Clientes e orçamentos não foram alterados.');
 }
 async function resetAllData(){
   state.profiles = presetsPadrao();
@@ -1829,6 +1833,7 @@ document.addEventListener('click', function(e){
     case 'add-itemvar-row': addItemVarRow(); break;
     case 'remove-itemvar-row': removeItemVarRow(id); break;
 
+    case 'atualizar-modelos-padrao': atualizarModelosPadrao(); break;
     case 'reset-all-confirm': handleConfirmClick(el, function(){ resetAllData(); }); break;
   }
 });
