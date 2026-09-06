@@ -7,26 +7,28 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
-    --bg: #EEF1E9;
+    --bg: #F3F7F4;
     --surface: #FFFFFF;
-    --surface-2: #F6F7F2;
-    --ink: #1B241D;
-    --ink-soft: #5B6459;
-    --line: #D9DACC;
-    --accent: #E2992F;
-    --accent-ink: #4A3105;
-    --accent-soft: #FBEBD2;
-    --savings: #2F6F4E;
-    --savings-soft: #E4F0E9;
+    --surface-2: #EAF1EC;
+    --ink: #16241D;
+    --ink-soft: #5C6F63;
+    --line: #DAE6DE;
+    --accent: #1B4D3E;
+    --accent-hover: #163E32;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #E3EEE8;
+    --savings: #2F9E6F;
+    --savings-soft: #E1F3E9;
     --alert: #AE3A2B;
     --alert-soft: #F7E4E0;
-    --dot-single: #E2992F;
-    --dot-multi: #2F6F4E;
-    --radius-s: 3px;
+    --dot-single: #6FA98A;
+    --dot-multi: #1B4D3E;
+    --radius-s: 6px;
     --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
     --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
-    --shadow-lift: 0 1px 2px rgba(27,36,29,.06), 0 6px 20px rgba(27,36,29,.07);
+    --shadow-lift: 0 1px 2px rgba(22,36,29,.06), 0 8px 24px rgba(22,36,29,.08);
+    --ease: cubic-bezier(.4,0,.2,1);
   }
   *{ box-sizing: border-box; }
   html,body{ height:100%; }
@@ -46,7 +48,8 @@
   .brand-text span{ font-size:11.5px; color: var(--ink-soft); }
   .side-label{ font-size:11.5px; color: var(--ink-soft); padding: 0 6px 6px; }
   .client-list{ display:flex; flex-direction:column; gap:3px; overflow-y:auto; flex:1; }
-  .client-row{ display:flex; align-items:center; gap:9px; padding: 9px 8px; border-radius: var(--radius-s); cursor:pointer; border: 1px solid transparent; }
+  .client-row{ display:flex; align-items:center; gap:9px; padding: 9px 8px; border-radius: var(--radius-s); cursor:pointer; border: 1px solid transparent; transition: background .15s var(--ease), border-color .15s var(--ease), transform .15s var(--ease); }
+  .client-row:active{ transform: scale(.985); }
   .client-row:hover{ background: var(--surface); }
   .client-row.active{ background: var(--surface); border-color: var(--line); box-shadow: var(--shadow-lift); }
   .client-dot{ width:8px; height:8px; border-radius:50%; flex:none; }
@@ -65,11 +68,12 @@
   .topbar .sub{ font-size:12.5px; color: var(--ink-soft); margin-top:2px; }
 
   .tabs{ display:flex; gap: 4px; padding: 16px 32px 0; border-bottom: 1px solid var(--line); flex-wrap:wrap; }
-  .tab-btn{ background:none; border:none; cursor:pointer; padding: 9px 4px; margin-right: 22px; color: var(--ink-soft); border-bottom: 2px solid transparent; position:relative; top:1px; }
+  .tab-btn{ background:none; border:none; cursor:pointer; padding: 9px 4px; margin-right: 22px; color: var(--ink-soft); border-bottom: 2px solid transparent; position:relative; top:1px; transition: color .15s var(--ease), border-color .2s var(--ease); }
   .tab-btn.active{ color: var(--ink); border-bottom-color: var(--accent); font-weight:600; }
   .tab-btn:disabled{ color:#C7CBBE; cursor:not-allowed; }
 
   .content{ padding: 24px 32px 60px; flex:1; }
+  #tab-content{ transition: opacity .22s var(--ease), transform .22s var(--ease); }
   .empty-state{ max-width: 460px; margin: 40px auto; text-align:center; padding: 32px 24px; border: 1px dashed var(--line); border-radius: var(--radius-s); }
   .empty-state p{ color: var(--ink-soft); margin: 8px 0 18px; }
 
@@ -99,10 +103,12 @@
   .add-ponto-btn, .add-var-btn{ background:none; border:1px dashed var(--line); border-radius: var(--radius-s); padding:7px 10px; cursor:pointer; color: var(--ink-soft); font-size:13px; }
   .add-ponto-btn:hover, .add-var-btn:hover{ border-color: var(--savings); color: var(--savings); }
 
-  .btn{ display:inline-flex; align-items:center; gap:6px; padding: 9px 16px; border-radius: var(--radius-s); cursor:pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .btn{ display:inline-flex; align-items:center; gap:6px; padding: 9px 16px; border-radius: var(--radius-s); cursor:pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); transition: background .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease), transform .1s var(--ease), box-shadow .15s var(--ease); }
+  .btn:active{ transform: scale(.97); }
+  .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
   .btn:hover{ border-color: #B8BCA9; }
   .btn-primary{ background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight:600; }
-  .btn-primary:hover{ background: #D08A26; }
+  .btn-primary:hover{ background: var(--accent-hover); }
   .btn-ghost{ border-color: transparent; background:transparent; color: var(--ink-soft); }
   .btn-ghost:hover{ color: var(--ink); background: var(--surface-2); }
   .btn-danger{ color: var(--alert); }
@@ -111,7 +117,7 @@
   .btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top: 4px; }
   .btn-sm{ padding:5px 10px; font-size:12.5px; }
 
-  .panel{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 16px 18px; margin-bottom:20px; }
+  .panel{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 16px 18px; margin-bottom:20px; transition: box-shadow .2s var(--ease), border-color .2s var(--ease); }
   .panel h2{ font-family: var(--serif); font-size:16px; margin: 0 0 12px; }
   .breakdown-row{ display:flex; justify-content:space-between; gap:12px; padding: 6px 0; border-bottom: 1px solid var(--surface-2); font-size: 13.5px; }
   .breakdown-row .lbl{ color: var(--ink-soft); }
@@ -139,12 +145,15 @@
   .checklist label{ display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:400; }
   .checklist input{ margin:0; }
 
-  .history-item{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 14px 16px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; }
+  .history-item{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 14px 16px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; transition: box-shadow .2s var(--ease), border-color .2s var(--ease); }
+  .history-item:hover{ box-shadow: var(--shadow-lift); border-color: var(--accent-soft); }
   .history-item .info b{ display:block; }
   .history-item .info span{ font-size:12.5px; color: var(--ink-soft); }
 
-  .modal-overlay{ position:fixed; inset:0; background: rgba(27,36,29,.35); display:flex; align-items:flex-start; justify-content:center; padding: 40px 16px; overflow-y:auto; z-index:50; }
-  .modal{ background: var(--surface); border-radius: var(--radius-s); width:100%; max-width:480px; padding: 22px 24px 24px; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+  .modal-overlay{ position:fixed; inset:0; background: rgba(22,36,29,.4); display:flex; align-items:flex-start; justify-content:center; padding: 40px 16px; overflow-y:auto; z-index:50; animation: overlayIn .18s var(--ease); }
+  @keyframes overlayIn{ from{ opacity:0; } to{ opacity:1; } }
+  .modal{ background: var(--surface); border-radius: var(--radius-s); width:100%; max-width:480px; padding: 22px 24px 24px; box-shadow: 0 20px 60px rgba(0,0,0,.25); animation: modalIn .2s var(--ease); }
+  @keyframes modalIn{ from{ opacity:0; transform: translateY(10px) scale(.98); } to{ opacity:1; transform: translateY(0) scale(1); } }
   .modal h2{ font-family: var(--serif); margin:0 0 16px; font-size:19px; }
   .modal-close{ float:right; background:none; border:none; cursor:pointer; color: var(--ink-soft); font-size:18px; }
 
@@ -166,7 +175,8 @@
   .auth-config-warning{ max-width:520px; margin:60px auto; text-align:center; padding:28px; border:1px dashed var(--alert); border-radius:var(--radius-s); color:var(--alert); }
 
   /* ---- Perfis ---- */
-  .profile-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 14px 16px; margin-bottom:10px; }
+  .profile-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); padding: 14px 16px; margin-bottom:10px; transition: box-shadow .2s var(--ease), border-color .2s var(--ease); }
+  .profile-card:hover{ box-shadow: var(--shadow-lift); border-color: var(--accent-soft); }
   .profile-card .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; }
   .profile-card h3{ margin:0 0 4px; font-family: var(--serif); font-size:16px; }
   .profile-card .desc{ font-size:12.5px; color: var(--ink-soft); margin:0 0 8px; max-width:520px; }
@@ -506,6 +516,7 @@ function mensagemErroAvaliacao(erro){
    ============================================================ */
 var state = {
   profiles: [], clients: [], quotes: [],
+  docConfig: { nomeEmpresa: '', logoBase64: null, corPrimaria: '#1B4D3E', textoRodape: '', enderecoContato: '' },
   selectedClientId: null, activeTab: 'novo',
   editingProfileId: null, /* perfil sendo editado/criado no momento (id ou null=novo) */
   lastDraft: null
@@ -530,7 +541,8 @@ var currentUser = null; /* preenchido após login; cada tabela é isolada por us
 var TABLE_FOR_KEY = {
   'usinas:v2:profiles': 'perfis_faturamento',
   'usinas:v2:clients': 'clientes',
-  'usinas:v2:quotes': 'orcamentos'
+  'usinas:v2:quotes': 'orcamentos',
+  'usinas:v2:docconfig': 'configuracoes_documento'
 };
 
 /* Mantém a MESMA interface de antes (storageGet/storageSet operando em "chaves" com um
@@ -562,6 +574,10 @@ async function storageSet(key, value){
 async function saveProfiles(){ await storageSet('usinas:v2:profiles', JSON.stringify(state.profiles)); }
 async function saveClients(){ await storageSet('usinas:v2:clients', JSON.stringify(state.clients)); }
 async function saveQuotes(){ await storageSet('usinas:v2:quotes', JSON.stringify(state.quotes)); }
+async function saveDocConfig(){ await storageSet('usinas:v2:docconfig', JSON.stringify(state.docConfig)); }
+function docConfigPadrao(){
+  return { nomeEmpresa: '', logoBase64: null, corPrimaria: '#1B4D3E', textoRodape: '', enderecoContato: '' };
+}
 
 /* ============================================================
    PRESETS (Perfis de Faturamento prontos)
@@ -711,9 +727,11 @@ async function loadAll(){
   var pRaw = await storageGet('usinas:v2:profiles');
   var cRaw = await storageGet('usinas:v2:clients');
   var qRaw = await storageGet('usinas:v2:quotes');
+  var dRaw = await storageGet('usinas:v2:docconfig');
   state.profiles = pRaw ? JSON.parse(pRaw) : [];
   state.clients = cRaw ? JSON.parse(cRaw) : [];
   state.quotes = qRaw ? JSON.parse(qRaw) : [];
+  state.docConfig = dRaw ? Object.assign(docConfigPadrao(), JSON.parse(dRaw)) : docConfigPadrao();
   if(state.profiles.length === 0){
     state.profiles = presetsPadrao();
     await saveProfiles();
@@ -757,8 +775,8 @@ function formatoCampo(profile, chave){ return (profile.formatosCampos && profile
    ============================================================ */
 function sunIconSvg(size){
   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-    '<circle cx="12" cy="12" r="4.6" fill="#E2992F"/>' +
-    '<g stroke="#E2992F" stroke-width="1.6" stroke-linecap="round">' +
+    '<circle cx="12" cy="12" r="4.6" fill="#2F9E6F"/>' +
+    '<g stroke="#2F9E6F" stroke-width="1.6" stroke-linecap="round">' +
     '<line x1="12" y1="1.5" x2="12" y2="4.3"/><line x1="12" y1="19.7" x2="12" y2="22.5"/>' +
     '<line x1="1.5" y1="12" x2="4.3" y2="12"/><line x1="19.7" y1="12" x2="22.5" y2="12"/>' +
     '<line x1="4.4" y1="4.4" x2="6.4" y2="6.4"/><line x1="17.6" y1="17.6" x2="19.6" y2="19.6"/>' +
@@ -1200,30 +1218,181 @@ function carregarJsPdf(){
   });
   return _jspdfLoading;
 }
-async function baixarPdf(texto, nomeArquivo){
+function hexToRgb(hex){
+  hex = (hex || '#1B4D3E').replace('#','');
+  if(hex.length === 3) hex = hex.split('').map(function(c){ return c+c; }).join('');
+  var num = parseInt(hex, 16);
+  if(isNaN(num)) num = 0x1B4D3E;
+  return [ (num>>16)&255, (num>>8)&255, num&255 ];
+}
+function carregarDimensoesImagem(base64){
+  return new Promise(function(resolve){
+    try{
+      var img = new Image();
+      img.onload = function(){ resolve({ w: img.naturalWidth || 1, h: img.naturalHeight || 1 }); };
+      img.onerror = function(){ resolve(null); };
+      img.src = base64;
+    }catch(e){ resolve(null); }
+  });
+}
+function formatoImagemBase64(base64){
+  if(base64.indexOf('image/png') > -1) return 'PNG';
+  if(base64.indexOf('image/webp') > -1) return 'WEBP';
+  return 'JPEG';
+}
+
+async function baixarPdf(){
+  var d = state.lastDraft;
+  if(!d){ toast('Calcule um orçamento antes de baixar o PDF.'); return; }
   var ok = await carregarJsPdf();
   if(!ok || !window.jspdf){
     toast('Não deu para carregar o gerador de PDF agora. Use "Imprimir" e escolha "Salvar como PDF".');
     return;
   }
+  var client = state.clients.find(function(c){ return c.id === d.clientId; });
+  var profile = getProfile(d.profileId);
+  if(!client || !profile) return;
+  var dc = state.docConfig || docConfigPadrao();
+  var rgb = hexToRgb(dc.corPrimaria);
+
+  var logoDim = null;
+  if(dc.logoBase64){ logoDim = await carregarDimensoesImagem(dc.logoBase64); }
+
   try{
     var jsPDF = window.jspdf.jsPDF;
     var doc = new jsPDF({ unit:'pt', format:'a4' });
-    var marginX = 56, marginTop = 64, maxWidth = 483;
-    doc.setFont('times','normal'); doc.setFontSize(12);
-    var paragrafos = texto.split('\n');
-    var y = marginTop;
-    paragrafos.forEach(function(par){
-      if(par === ''){ y += 12; return; }
-      var linhas = doc.splitTextToSize(par, maxWidth);
-      linhas.forEach(function(linha){
-        if(y > 780){ doc.addPage(); y = marginTop; }
-        doc.text(linha, marginX, y);
-        y += 16;
-      });
+    var pageW = doc.internal.pageSize.getWidth();
+    var pageH = doc.internal.pageSize.getHeight();
+    var marginX = 48;
+    var maxWidth = pageW - marginX*2;
+    var y = 54;
+
+    function checkBreak(precisa){
+      if(y + precisa > pageH - 60){ doc.addPage(); y = 54; }
+    }
+    function linhaSeparadora(yy){
+      doc.setDrawColor(224,228,224); doc.setLineWidth(0.6);
+      doc.line(marginX, yy, pageW - marginX, yy);
+    }
+
+    /* ---- Cabeçalho: logo + nome da empresa ---- */
+    var logoH = 0, logoW = 0;
+    if(logoDim){
+      logoH = 42;
+      logoW = (logoDim.w/logoDim.h) * logoH;
+      if(logoW > 130){ logoW = 130; logoH = (logoDim.h/logoDim.w) * logoW; }
+      try{ doc.addImage(dc.logoBase64, formatoImagemBase64(dc.logoBase64), marginX, y - 8, logoW, logoH); }catch(e){}
+    }
+    var textoX = marginX + (logoW > 0 ? logoW + 16 : 0);
+    doc.setFont('helvetica','bold'); doc.setFontSize(15);
+    doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+    doc.text(dc.nomeEmpresa || 'Solar Organization', textoX, y + 12);
+    if(dc.enderecoContato){
+      doc.setFont('helvetica','normal'); doc.setFontSize(9.5);
+      doc.setTextColor(110,120,113);
+      doc.text(dc.enderecoContato, textoX, y + 27);
+    }
+    y += Math.max(logoH, 30) + 18;
+
+    doc.setFillColor(rgb[0],rgb[1],rgb[2]);
+    doc.rect(marginX, y, maxWidth, 2.4, 'F');
+    y += 26;
+
+    /* ---- Título do documento ---- */
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.setTextColor(22,36,29);
+    doc.text('USINA ' + client.nome.toUpperCase() + (client.uc ? ' — UC ' + client.uc : ''), marginX, y);
+    y += 18;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+    doc.setTextColor(92,111,99);
+    doc.text('Referência: ' + d.referencia, marginX, y);
+    y += 22;
+
+    /* ---- Campos visíveis ao cliente ---- */
+    var camposDisp = camposDisponiveisPerfil(profile);
+    doc.setFontSize(10.5);
+    camposDisp.forEach(function(campo){
+      if(d.camposVisiveisEscolhidos.indexOf(campo.chave) === -1) return;
+      checkBreak(20);
+      var valor = formatarValor(d.scope[campo.chave], campo.formato);
+      doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
+      doc.text(campo.rotulo, marginX, y);
+      doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
+      doc.text(valor, pageW - marginX, y, { align:'right' });
+      y += 8;
+      linhaSeparadora(y);
+      y += 14;
     });
-    doc.save(nomeArquivo + '.pdf');
+
+    /* ---- Itens (pontos de consumo), se houver ---- */
+    if(profile.possuiItensMultiplos && d.itensResultado){
+      var prefixo = profile.rotuloItemPrefixo || 'Injeção em ';
+      d.itensResultado.forEach(function(item){
+        checkBreak(20);
+        doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
+        doc.text(prefixo + item.nome, marginX, y);
+        doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
+        doc.text(fmtBRL(item[d.chaveItemValor]), pageW - marginX, y, { align:'right' });
+        y += 8;
+        linhaSeparadora(y);
+        y += 14;
+      });
+    }
+
+    if(Math.abs(d.ajuste) > 0.004){
+      checkBreak(20);
+      doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
+      doc.text('Ajuste do mês', marginX, y);
+      doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
+      doc.text(fmtBRL(d.ajuste), pageW - marginX, y, { align:'right' });
+      y += 22;
+    } else {
+      y += 8;
+    }
+
+    /* ---- Observações ---- */
+    if(d.observacoes){
+      checkBreak(30);
+      doc.setFont('helvetica','italic'); doc.setFontSize(10);
+      doc.setTextColor(92,111,99);
+      var obsLinhas = doc.splitTextToSize(d.observacoes, maxWidth);
+      obsLinhas.forEach(function(linha){ checkBreak(14); doc.text(linha, marginX, y); y += 14; });
+      y += 8;
+    }
+
+    /* ---- Total (caixa destacada) ---- */
+    checkBreak(56);
+    doc.setFillColor(rgb[0],rgb[1],rgb[2]);
+    doc.roundedRect(marginX, y, maxWidth, 42, 5, 5, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    doc.setTextColor(255,255,255);
+    doc.text((profile.rotuloTotalCliente || 'VALOR FINAL A SER PAGO'), marginX + 16, y + 26);
+    doc.setFontSize(14);
+    doc.text(fmtBRL(d.scope[profile.chaveTotalFinal]), pageW - marginX - 16, y + 27, { align:'right' });
+    y += 42 + 26;
+
+    /* ---- Pagamento ---- */
+    checkBreak(40);
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+    doc.setTextColor(92,111,99);
+    doc.text('Chave Pix: ' + (client.chavePix || '—') + (client.banco ? ' (' + client.banco + ')' : ''), marginX, y);
+    y += 15;
+    if(client.beneficiario){ doc.text(client.beneficiario, marginX, y); y += 15; }
+
+    /* ---- Rodapé ---- */
+    var rodapeTexto = dc.textoRodape || '';
+    var totalPaginas = doc.internal.getNumberOfPages();
+    for(var p=1; p<=totalPaginas; p++){
+      doc.setPage(p);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+      doc.setTextColor(150,158,152);
+      if(rodapeTexto) doc.text(rodapeTexto, marginX, pageH - 30);
+      doc.text('Página ' + p + ' de ' + totalPaginas, pageW - marginX, pageH - 30, { align:'right' });
+    }
+
+    doc.save('orcamento-' + d.referencia + '.pdf');
   }catch(e){
+    console.error(e);
     toast('Erro ao gerar o PDF. Use "Imprimir" e escolha "Salvar como PDF".');
   }
 }
@@ -1546,11 +1715,33 @@ async function onDeleteProfile(id){
    ============================================================ */
 function renderConfig(){
   var container = document.getElementById('tab-content');
+  var d = state.docConfig;
+  var logoPreview = d.logoBase64
+    ? '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">' +
+        '<img src="' + d.logoBase64 + '" alt="Logo" style="max-height:56px;max-width:160px;border:1px solid var(--line);border-radius:var(--radius-s);padding:4px;background:#fff">' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="remove-logo">Remover logo</button>' +
+      '</div>'
+    : '<p class="hint" style="margin:0 0 10px">Nenhuma logo enviada ainda — o PDF sai só com o nome da empresa.</p>';
+
   container.innerHTML =
     '<div class="panel" style="max-width:520px">' +
       '<h2>Sua conta</h2>' +
       '<p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px">Conectado como <b>' + escapeHtml(currentUser?currentUser.email:'') + '</b>. Clientes, perfis de faturamento e orçamentos ficam salvos no banco de dados vinculados só a esta conta — nenhum outro usuário do site consegue ler ou alterar esses dados.</p>' +
       '<button class="btn" data-action="sign-out">Sair da conta</button>' +
+    '</div>' +
+    '<div class="panel" style="max-width:520px">' +
+      '<h2>Personalização do documento (PDF)</h2>' +
+      '<p style="color:var(--ink-soft);font-size:13px;margin:0 0 14px">Isso define como o PDF do orçamento sai para o seu cliente: sua logo, o nome da empresa e a cor de destaque.</p>' +
+      '<div class="field"><label>Nome da empresa</label><input type="text" id="dc-nome" value="' + escapeHtml(d.nomeEmpresa) + '" placeholder="Ex.: Solar Organization"></div>' +
+      '<div class="field"><label>Logo</label>' + logoPreview +
+        '<input type="file" id="dc-logo-input" accept="image/png,image/jpeg,image/webp">' +
+        '<span class="hint">PNG ou JPG, fundo transparente funciona melhor. Fica salvo na sua conta.</span></div>' +
+      '<div class="field-row">' +
+        '<div class="field" style="flex:0 0 140px"><label>Cor de destaque</label><input type="color" id="dc-cor" value="' + escapeHtml(d.corPrimaria || '#1B4D3E') + '" style="height:40px;padding:2px;cursor:pointer"></div>' +
+        '<div class="field"><label>Endereço / contato (opcional)</label><input type="text" id="dc-endereco" value="' + escapeHtml(d.enderecoContato) + '" placeholder="Ex.: (99) 99999-9999 · cidade/UF"></div>' +
+      '</div>' +
+      '<div class="field"><label>Texto de rodapé (opcional)</label><input type="text" id="dc-rodape" value="' + escapeHtml(d.textoRodape) + '" placeholder="Ex.: Obrigado pela parceria!"></div>' +
+      '<div class="btn-row"><button class="btn btn-primary" data-action="salvar-doc-config">Salvar personalização</button></div>' +
     '</div>' +
     '<div class="panel" style="max-width:520px">' +
       '<h2>Modelos padrão</h2>' +
@@ -1561,7 +1752,35 @@ function renderConfig(){
       '<h2>Dados</h2>' +
       '<button class="btn btn-danger" data-action="reset-all-confirm">Apagar todos os meus dados e restaurar modelos padrão</button>' +
     '</div>';
+
+  var logoInput = document.getElementById('dc-logo-input');
+  if(logoInput){
+    logoInput.addEventListener('change', function(e){
+      var file = e.target.files && e.target.files[0];
+      if(!file) return;
+      if(file.size > 900*1024){ toast('Essa imagem é grande demais — use uma logo com menos de 900KB.'); return; }
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        state.docConfig.logoBase64 = ev.target.result;
+        renderTabContent();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 }
+async function removerLogo(){
+  state.docConfig.logoBase64 = null;
+  renderTabContent();
+}
+async function salvarDocConfig(){
+  state.docConfig.nomeEmpresa = txt('dc-nome');
+  state.docConfig.corPrimaria = document.getElementById('dc-cor').value || '#1B4D3E';
+  state.docConfig.enderecoContato = txt('dc-endereco');
+  state.docConfig.textoRodape = txt('dc-rodape');
+  await saveDocConfig();
+  toast('Personalização do documento salva.');
+}
+
 async function atualizarModelosPadrao(){
   var novos = presetsPadrao();
   var atualizados = 0, adicionados = 0;
@@ -1588,6 +1807,8 @@ async function resetAllData(){
   await saveClients();
   state.quotes = [];
   await saveQuotes();
+  state.docConfig = docConfigPadrao();
+  await saveDocConfig();
   state.selectedClientId = state.clients[0].id;
   state.activeTab = 'novo'; state.editingProfileId = null;
   renderAll();
@@ -1749,14 +1970,14 @@ async function aoLogar(user){
   currentUser = user;
   document.getElementById('auth-root').innerHTML = '';
   document.getElementById('app-root').style.display = '';
-  state.profiles = []; state.clients = []; state.quotes = [];
+  state.profiles = []; state.clients = []; state.quotes = []; state.docConfig = docConfigPadrao();
   state.selectedClientId = null; state.activeTab = 'novo'; state.editingProfileId = null; state.lastDraft = null;
   await loadAll();
   renderAll();
 }
 function aoDeslogar(){
   currentUser = null;
-  state.profiles = []; state.clients = []; state.quotes = [];
+  state.profiles = []; state.clients = []; state.quotes = []; state.docConfig = docConfigPadrao();
   state.selectedClientId = null; state.lastDraft = null;
   authMsg = null; authMode = 'signin';
   renderAuthScreen();
@@ -1766,10 +1987,19 @@ function aoDeslogar(){
    RENDER GERAL
    ============================================================ */
 function renderTabContent(){
+  var el = document.getElementById('tab-content');
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(6px)';
   if(state.activeTab === 'novo') renderNovoOrcamento();
   else if(state.activeTab === 'historico') renderHistorico();
   else if(state.activeTab === 'perfis') renderPerfis();
   else renderConfig();
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      el.style.opacity = '1';
+      el.style.transform = 'translateY(0)';
+    });
+  });
 }
 function renderAll(){ renderSidebar(); renderTopbar(); renderTabs(); renderTabContent(); }
 
@@ -1815,7 +2045,7 @@ document.addEventListener('click', function(e){
     case 'copiar-carta': copiarTexto(state.lastDraft ? state.lastDraft.letter : ''); break;
     case 'baixar-txt': baixarTxt(state.lastDraft ? state.lastDraft.letter : '', 'orcamento-' + (state.lastDraft?state.lastDraft.referencia:'')); break;
     case 'baixar-doc': baixarDoc(state.lastDraft ? state.lastDraft.letter : '', 'orcamento-' + (state.lastDraft?state.lastDraft.referencia:'')); break;
-    case 'baixar-pdf': baixarPdf(state.lastDraft ? state.lastDraft.letter : '', 'orcamento-' + (state.lastDraft?state.lastDraft.referencia:'')); break;
+    case 'baixar-pdf': baixarPdf(); break;
     case 'imprimir': window.print(); break;
 
     case 'duplicar-quote': duplicarQuote(id); break;
@@ -1834,6 +2064,8 @@ document.addEventListener('click', function(e){
     case 'remove-itemvar-row': removeItemVarRow(id); break;
 
     case 'atualizar-modelos-padrao': atualizarModelosPadrao(); break;
+    case 'remove-logo': removerLogo(); break;
+    case 'salvar-doc-config': salvarDocConfig(); break;
     case 'reset-all-confirm': handleConfirmClick(el, function(){ resetAllData(); }); break;
   }
 });
