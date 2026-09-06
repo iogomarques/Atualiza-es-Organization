@@ -895,7 +895,7 @@ function renderNovoOrcamento(){
     '<fieldset><legend>Referência</legend>' +
       '<div class="field-row">' +
         '<div class="field"><label>Mês de referência</label><input type="text" id="f-ref" value="' + refPadrao() + '"></div>' +
-        '<div class="field"><label>Ajuste do mês (R$)</label><input type="text" inputmode="decimal" id="f-ajuste" value="0,00"><span class="hint">Reduz o valor final. Use negativo para acrescentar.</span></div>' +
+        '<div class="field"><label>Ajuste do mês (R$)</label><input type="text" inputmode="decimal" id="f-ajuste" value="" placeholder="0,00"><span class="hint">Reduz o valor final. Use negativo para acrescentar.</span></div>' +
       '</div>' +
     '</fieldset>' +
     '<details class="panel" style="cursor:pointer"><summary style="font-weight:600;cursor:pointer">Valores fixos aplicados a este cliente (definidos no perfil, editáveis em "Editar cliente")</summary>' +
@@ -910,7 +910,7 @@ function renderNovoOrcamento(){
   var formHtml;
   if(!profile.possuiItensMultiplos){
     var camposMensaisHtml = mensalVars.map(function(v){
-      return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="0,00"></div>';
+      return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="" placeholder="0,00"></div>';
     }).join('');
     formHtml = camposComuns +
       '<fieldset><legend>Dados do mês</legend>' + camposMensaisHtml + '</fieldset>' +
@@ -919,7 +919,7 @@ function renderNovoOrcamento(){
     var pontosSeed = (c.itensNomes && c.itensNomes.length) ? c.itensNomes : ['Ponto 1'];
     var pontosHtml = pontosSeed.map(function(nome){ return itemInputRowHtml(profile, nome, null); }).join('');
     var camposCompartilhadosHtml = mensalVars.map(function(v){
-      return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="0,00"></div>';
+      return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="" placeholder="0,00"></div>';
     }).join('');
     formHtml = camposComuns +
       (camposCompartilhadosHtml ? '<fieldset><legend>Dados compartilhados do mês</legend>' + camposCompartilhadosHtml + '</fieldset>' : '') +
@@ -939,6 +939,8 @@ function renderNovoOrcamento(){
         '<div class="panel" style="text-align:center;color:var(--ink-soft)">Preencha os dados e clique em <b>Calcular orçamento</b> para ver o resumo e o texto para o cliente.</div>' +
       '</div>' +
     '</div>';
+
+  restaurarRascunhoSeExistir(c, profile);
 }
 
 function readMensaisFromForm(){
@@ -956,6 +958,74 @@ function readItemRows(){
     itens.push(Object.assign({nome: nome}, valores));
   });
   return itens;
+}
+
+/* ============================================================
+   RASCUNHO AUTOMÁTICO (recuperação se a página recarregar antes de salvar)
+   ============================================================
+   Guardado no localStorage do navegador (não no Supabase — é só uma rede de
+   segurança local, temporária, até o usuário clicar em "Salvar no histórico"). */
+function chaveRascunho(clientId){ return 'usinas:rascunho:' + clientId; }
+
+function lerFormularioBruto(){
+  var ajusteEl = document.getElementById('f-ajuste');
+  var out = {
+    referencia: txt('f-ref'),
+    ajusteRaw: ajusteEl ? ajusteEl.value : '',
+    observacoes: txt('f-observacoes'),
+    mensais: {}, itens: null
+  };
+  document.querySelectorAll('.in-mensal').forEach(function(inp){ out.mensais[inp.dataset.chave] = inp.value; });
+  var pontosContainer = document.getElementById('pontos-container');
+  if(pontosContainer){
+    out.itens = [];
+    pontosContainer.querySelectorAll('.ponto-row').forEach(function(row){
+      var item = { nome: row.querySelector('.item-nome').value };
+      row.querySelectorAll('.item-val').forEach(function(inp){ item[inp.dataset.chave] = inp.value; });
+      out.itens.push(item);
+    });
+  }
+  return out;
+}
+function salvarRascunhoAtual(){
+  if(state.activeTab !== 'novo') return;
+  var c = selectedClient();
+  if(!c) return;
+  try{ window.localStorage.setItem(chaveRascunho(c.id), JSON.stringify(lerFormularioBruto())); }
+  catch(e){}
+}
+function lerRascunho(clientId){
+  try{
+    var raw = window.localStorage.getItem(chaveRascunho(clientId));
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function limparRascunho(clientId){
+  try{ window.localStorage.removeItem(chaveRascunho(clientId)); }catch(e){}
+}
+function restaurarRascunhoSeExistir(client, profile){
+  var rascunho = lerRascunho(client.id);
+  if(!rascunho) return;
+  setIf('f-ref', rascunho.referencia || refPadrao());
+  var ajusteEl = document.getElementById('f-ajuste');
+  if(ajusteEl) ajusteEl.value = rascunho.ajusteRaw || '';
+  setIf('f-observacoes', rascunho.observacoes || '');
+  Object.keys(rascunho.mensais || {}).forEach(function(chave){
+    var el = document.querySelector('.in-mensal[data-chave="' + chave + '"]');
+    if(el) el.value = rascunho.mensais[chave];
+  });
+  if(profile.possuiItensMultiplos && rascunho.itens && rascunho.itens.length){
+    var wrap = document.getElementById('pontos-container');
+    if(wrap){
+      wrap.innerHTML = rascunho.itens.map(function(it){
+        var valores = {};
+        Object.keys(it).forEach(function(k){ if(k !== 'nome') valores[k] = parseNumBR(it[k]); });
+        return itemInputRowHtml(profile, it.nome, valores);
+      }).join('');
+    }
+  }
+  toast('Recuperamos os dados do seu último lançamento não salvo para este cliente.');
+  onCalcular();
 }
 
 function onCalcular(){
@@ -1095,7 +1165,8 @@ function renderPreview(){
     '<div class="btn-row">' +
       '<button class="btn btn-primary" data-action="salvar-historico">Salvar no histórico</button>' +
       '<button class="btn" data-action="copiar-carta">Copiar texto</button>' +
-      '<button class="btn" data-action="baixar-pdf">Baixar PDF</button>' +
+      '<button class="btn" data-action="baixar-pdf">Baixar PDF (cliente)</button>' +
+      '<button class="btn" data-action="baixar-pdf-interno">Baixar PDF interno</button>' +
       '<button class="btn" data-action="baixar-doc">Baixar Word (.doc)</button>' +
       '<button class="btn" data-action="baixar-txt">Baixar .txt</button>' +
       '<button class="btn" data-action="imprimir">Imprimir</button>' +
@@ -1129,6 +1200,7 @@ async function onSalvarHistorico(){
   var q = Object.assign({ id: uid(), createdAt: new Date().toISOString() }, state.lastDraft);
   state.quotes.unshift(q);
   await saveQuotes();
+  limparRascunho(q.clientId);
   toast('Orçamento salvo no histórico.');
   if(state.activeTab === 'historico'){ renderTabContent(); }
 }
@@ -1241,7 +1313,8 @@ function formatoImagemBase64(base64){
   return 'JPEG';
 }
 
-async function baixarPdf(){
+async function baixarPdf(modo){
+  modo = modo || 'cliente';
   var d = state.lastDraft;
   if(!d){ toast('Calcule um orçamento antes de baixar o PDF.'); return; }
   var ok = await carregarJsPdf();
@@ -1254,6 +1327,7 @@ async function baixarPdf(){
   if(!client || !profile) return;
   var dc = state.docConfig || docConfigPadrao();
   var rgb = hexToRgb(dc.corPrimaria);
+  var interno = (modo === 'interno');
 
   var logoDim = null;
   if(dc.logoBase64){ logoDim = await carregarDimensoesImagem(dc.logoBase64); }
@@ -1273,6 +1347,16 @@ async function baixarPdf(){
     function linhaSeparadora(yy){
       doc.setDrawColor(224,228,224); doc.setLineWidth(0.6);
       doc.line(marginX, yy, pageW - marginX, yy);
+    }
+
+    /* ---- Faixa de aviso, só no modo interno ---- */
+    if(interno){
+      doc.setFillColor(43,50,46);
+      doc.rect(marginX, y - 20, maxWidth, 24, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+      doc.setTextColor(255,255,255);
+      doc.text('DOCUMENTO INTERNO — USO PROFISSIONAL, NÃO ENVIAR AO CLIENTE', marginX + 10, y - 3);
+      y += 14;
     }
 
     /* ---- Cabeçalho: logo + nome da empresa ---- */
@@ -1301,18 +1385,18 @@ async function baixarPdf(){
     /* ---- Título do documento ---- */
     doc.setFont('helvetica','bold'); doc.setFontSize(13);
     doc.setTextColor(22,36,29);
-    doc.text('USINA ' + client.nome.toUpperCase() + (client.uc ? ' — UC ' + client.uc : ''), marginX, y);
+    doc.text((interno ? 'RESUMO INTERNO — ' : 'USINA ') + client.nome.toUpperCase() + (client.uc ? ' — UC ' + client.uc : ''), marginX, y);
     y += 18;
     doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
     doc.setTextColor(92,111,99);
-    doc.text('Referência: ' + d.referencia, marginX, y);
+    doc.text('Referência: ' + d.referencia + (interno ? ' · Perfil: ' + profile.nome : ''), marginX, y);
     y += 22;
 
-    /* ---- Campos visíveis ao cliente ---- */
+    /* ---- Campos: no modo cliente só os marcados como visíveis; no modo interno, todos ---- */
     var camposDisp = camposDisponiveisPerfil(profile);
     doc.setFontSize(10.5);
     camposDisp.forEach(function(campo){
-      if(d.camposVisiveisEscolhidos.indexOf(campo.chave) === -1) return;
+      if(!interno && d.camposVisiveisEscolhidos.indexOf(campo.chave) === -1) return;
       checkBreak(20);
       var valor = formatarValor(d.scope[campo.chave], campo.formato);
       doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
@@ -1330,7 +1414,7 @@ async function baixarPdf(){
       d.itensResultado.forEach(function(item){
         checkBreak(20);
         doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
-        doc.text(prefixo + item.nome, marginX, y);
+        doc.text(prefixo + item.nome + (interno ? ' (' + fmtKwh(item.consumoKwh||0) + ')' : ''), marginX, y);
         doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
         doc.text(fmtBRL(item[d.chaveItemValor]), pageW - marginX, y, { align:'right' });
         y += 8;
@@ -1366,21 +1450,29 @@ async function baixarPdf(){
     doc.roundedRect(marginX, y, maxWidth, 42, 5, 5, 'F');
     doc.setFont('helvetica','bold'); doc.setFontSize(11);
     doc.setTextColor(255,255,255);
-    doc.text((profile.rotuloTotalCliente || 'VALOR FINAL A SER PAGO'), marginX + 16, y + 26);
+    doc.text((interno ? 'VALOR FINAL DA LOCAÇÃO' : (profile.rotuloTotalCliente || 'VALOR FINAL A SER PAGO')), marginX + 16, y + 26);
     doc.setFontSize(14);
     doc.text(fmtBRL(d.scope[profile.chaveTotalFinal]), pageW - marginX - 16, y + 27, { align:'right' });
     y += 42 + 26;
 
-    /* ---- Pagamento ---- */
-    checkBreak(40);
-    doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
-    doc.setTextColor(92,111,99);
-    doc.text('Chave Pix: ' + (client.chavePix || '—') + (client.banco ? ' (' + client.banco + ')' : ''), marginX, y);
-    y += 15;
-    if(client.beneficiario){ doc.text(client.beneficiario, marginX, y); y += 15; }
+    if(!interno){
+      /* ---- Pagamento (só no PDF do cliente) ---- */
+      checkBreak(40);
+      doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+      doc.setTextColor(92,111,99);
+      doc.text('Chave Pix: ' + (client.chavePix || '—') + (client.banco ? ' (' + client.banco + ')' : ''), marginX, y);
+      y += 15;
+      if(client.beneficiario){ doc.text(client.beneficiario, marginX, y); y += 15; }
+    } else if(client.condicaoPagamento){
+      checkBreak(20);
+      doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+      doc.setTextColor(92,111,99);
+      doc.text('Condição de pagamento: ' + client.condicaoPagamento, marginX, y);
+      y += 15;
+    }
 
     /* ---- Rodapé ---- */
-    var rodapeTexto = dc.textoRodape || '';
+    var rodapeTexto = interno ? 'Documento de uso interno — não enviar ao cliente.' : (dc.textoRodape || '');
     var totalPaginas = doc.internal.getNumberOfPages();
     for(var p=1; p<=totalPaginas; p++){
       doc.setPage(p);
@@ -1390,7 +1482,7 @@ async function baixarPdf(){
       doc.text('Página ' + p + ' de ' + totalPaginas, pageW - marginX, pageH - 30, { align:'right' });
     }
 
-    doc.save('orcamento-' + d.referencia + '.pdf');
+    doc.save((interno ? 'resumo-interno-' : 'orcamento-') + client.nome.replace(/\s+/g,'-').toLowerCase() + '-' + d.referencia.replace(/\//g,'-') + '.pdf');
   }catch(e){
     console.error(e);
     toast('Erro ao gerar o PDF. Use "Imprimir" e escolha "Salvar como PDF".');
@@ -2015,6 +2107,19 @@ document.addEventListener('input', function(e){
   if(e.target.classList && e.target.classList.contains('v-chave')){ e.target.dataset.touched = '1'; }
 });
 
+/* Auto-salva um rascunho local (com atraso curto) sempre que o usuário digita
+   nos campos do orçamento — assim, se a página recarregar (ex.: ao abrir um
+   PDF gerado e voltar), o que já foi digitado não se perde. */
+var _rascunhoTimer = null;
+document.addEventListener('input', function(e){
+  var t = e.target;
+  var relevante = t.id === 'f-ref' || t.id === 'f-ajuste' || t.id === 'f-observacoes' ||
+    (t.classList && (t.classList.contains('in-mensal') || t.classList.contains('item-nome') || t.classList.contains('item-val')));
+  if(!relevante) return;
+  clearTimeout(_rascunhoTimer);
+  _rascunhoTimer = setTimeout(salvarRascunhoAtual, 400);
+});
+
 document.addEventListener('click', function(e){
   var overlay = e.target.closest('[data-action="close-modal-bg"]');
   if(overlay && !e.target.closest('[data-stop-close]')){ closeModal(); return; }
@@ -2045,7 +2150,8 @@ document.addEventListener('click', function(e){
     case 'copiar-carta': copiarTexto(state.lastDraft ? state.lastDraft.letter : ''); break;
     case 'baixar-txt': baixarTxt(state.lastDraft ? state.lastDraft.letter : '', 'orcamento-' + (state.lastDraft?state.lastDraft.referencia:'')); break;
     case 'baixar-doc': baixarDoc(state.lastDraft ? state.lastDraft.letter : '', 'orcamento-' + (state.lastDraft?state.lastDraft.referencia:'')); break;
-    case 'baixar-pdf': baixarPdf(); break;
+    case 'baixar-pdf': baixarPdf('cliente'); break;
+    case 'baixar-pdf-interno': baixarPdf('interno'); break;
     case 'imprimir': window.print(); break;
 
     case 'duplicar-quote': duplicarQuote(id); break;
