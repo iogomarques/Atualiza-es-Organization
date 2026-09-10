@@ -183,12 +183,11 @@
   .profile-card .desc{ font-size:12.5px; color: var(--ink-soft); margin:0 0 8px; max-width:520px; }
 
   .var-row{ display:grid; grid-template-columns: 2fr 1.1fr 0.9fr 0.9fr 0.7fr auto; gap:6px; margin-bottom:6px; align-items:center; }
-  .var-row.item-row{ grid-template-columns: 2fr 1.1fr 0.9fr 0.7fr auto; }
   .var-row input, .var-row select{ padding:7px 8px; border:1px solid var(--line); border-radius: var(--radius-s); width:100%; }
   .var-row .rm-btn{ background:none; border:1px solid var(--line); border-radius: var(--radius-s); color: var(--alert); cursor:pointer; padding: 6px 9px; }
   .var-row .rm-btn:hover{ background: var(--alert-soft); }
   .var-header{ display:grid; grid-template-columns: 2fr 1.1fr 0.9fr 0.9fr 0.7fr auto; gap:6px; font-size:11px; color: var(--ink-soft); margin-bottom:4px; }
-  .var-header.item-header{ grid-template-columns: 2fr 1.1fr 0.9fr 0.7fr auto; }
+  .field-checkbox{ display:flex; align-items:center; }
 
   .formula-box textarea{ width:100%; min-height:140px; font-family: var(--mono); font-size:13px; padding:10px 12px; border:1px solid var(--line); border-radius: var(--radius-s); resize:vertical; line-height:1.6; }
   .formula-box .hint{ display:block; font-size:11.5px; color: var(--ink-soft); margin-top:5px; }
@@ -285,6 +284,7 @@ function formatarValor(v, formato){
     case 'moeda': return fmtBRL(v);
     case 'kwh': return fmtKwh(v);
     case 'percentual': return fmtPct(v);
+    case 'booleano': return v ? 'Sim' : 'Não';
     default: return (v||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
   }
 }
@@ -707,8 +707,9 @@ function presetGD2ComFioBUnico(){
 function presetGD2ComFioBMultiplos(){
   return {
     id: uid(), isPreset: true, nome: 'GD2 com Fio B — múltiplos pontos',
-    descricao: 'Vários pontos de consumo (ex.: casa + comercial), cada um com sua própria UC, dividindo a mesma injeção solar. O Fio B é rateado automaticamente pelo consumo de cada ponto (com base na energia ativa da fatura), mas pode ser sobrescrito manualmente por ponto quando um deles tiver o Fio B informado na própria conta — e é sempre mostrado separadamente ao cliente.',
+    descricao: 'Vários pontos de consumo (ex.: casa + comercial), cada um com sua própria UC, dividindo a mesma injeção solar. Um dos pontos é o "principal" — o único cuja fatura já fechou no momento do lançamento — e nele você digita o consumo e o Fio B reais. Os outros pontos ainda não têm fatura fechada (datas de fechamento diferentes), então o sistema calcula os dois automaticamente: consumo = injeção total menos o consumo do principal, e o Fio B usa a mesma proporção R$/kWh do principal. O Fio B de cada ponto é sempre mostrado separadamente ao cliente.',
     possuiItensMultiplos: true,
+    distribuicaoAutomaticaPontos: true,
     variaveis: [
       {chave:'precoBase', rotulo:'Preço do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
       {chave:'taxaBandeira', rotulo:'Taxa de bandeira por kWh', categoria:'fixo', valorPadrao:0.025054, formato:'moeda'},
@@ -717,12 +718,8 @@ function presetGD2ComFioBMultiplos(){
       {chave:'injecaoTotal', rotulo:'Injeção total (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'saldoDelta', rotulo:'Saldo — variação do mês (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'injecaoNaConta', rotulo:'Injeção que aparece na conta (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
-      {chave:'energiaAtiva', rotulo:'Energia ativa consumida (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
-      {chave:'fioB', rotulo:'Fio B total da fatura (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'iluminacao', rotulo:'Iluminação pública (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'adicionais', rotulo:'Adicionais (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'adicionalBandeira', rotulo:'Adicional de bandeira (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'gastoNaoCompensado', rotulo:'Gasto não compensado (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'valorFaturaInfo', rotulo:'Valor da fatura da concessionária (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
     ],
     formulasCompartilhadas: [
@@ -730,46 +727,43 @@ function presetGD2ComFioBMultiplos(){
       'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
       'injecaoEfetiva = injecaoTotal - saldoDelta',
       'consumoEfetivo = consumoTotal - saldoDelta',
-      'valorFioBPorKwh = se(energiaAtiva > 0, fioB/energiaAtiva, 0)',
       'injecaoSemDescontoRS = injecaoEfetiva * precoSemDesconto',
       'injecaoComDescontoRS = injecaoEfetiva * precoComDesconto',
       'valorSemSolar = consumoEfetivo * precoSemDesconto',
       'descontoRS = injecaoSemDescontoRS - injecaoComDescontoRS',
-      'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)',
-      'somaComponentes = gastoNaoCompensado + adicionalBandeira + adicionais + iluminacao + fioB'
+      'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)'
     ],
     itemVariaveis: [
+      {chave:'pontoPrincipal', rotulo:'Ponto principal (fatura real deste mês — os demais são calculados)', tipo:'checkbox', valorPadrao:0, formato:'booleano'},
       {chave:'consumoKwh', rotulo:'Consumo do ponto (kWh)', valorPadrao:0, formato:'kwh'},
-      {chave:'fioBManual', rotulo:'Fio B deste ponto (R$) — deixe 0 para ratear automaticamente', valorPadrao:0, formato:'moeda'}
+      {chave:'fioBPonto', rotulo:'Fio B deste ponto (R$)', valorPadrao:0, formato:'moeda'}
     ],
     itemFormulas: [
-      'valorFioBEfetivo = se(fioBManual > 0, fioBManual, consumoKwh*valorFioBPorKwh)',
-      'valorItem = consumoKwh*precoComDesconto - valorFioBEfetivo'
+      'valorItem = consumoKwh*precoComDesconto - fioBPonto'
     ],
     formulasFinais: [
       'consumoAlocadoTotal = sum(itens_consumoKwh)',
-      'fioBAlocadoTotal = sum(itens_valorFioBEfetivo)',
+      'fioBAlocadoTotal = sum(itens_fioBPonto)',
       'liquidoTotal = sum(itens_valorItem)',
       'valorComSolar = liquidoTotal',
-      'valorFinal = liquidoTotal - ajuste'
+      'valorFinal = liquidoTotal - ajuste',
+      'somaComponentes = adicionais + iluminacao + fioBAlocadoTotal'
     ],
     chaveTotalFinal: 'valorFinal',
     rotuloTotalCliente: 'VALOR A SER PAGO (TOTAL)',
     rotuloItemPrefixo: 'Injeção em ',
-    chaveItemFioB: 'valorFioBEfetivo',
+    chaveItemFioB: 'fioBPonto',
     rotuloItemFioBPrefixo: 'Fio B em ',
     camposVisiveisCliente: [],
-    camposItemVisiveisCliente: ['valorFioBEfetivo'],
+    camposItemVisiveisCliente: ['fioBPonto'],
     rotulosCampos: {
       precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
       injecaoEfetiva:'Injeção efetiva (já descontado o saldo)', consumoEfetivo:'Consumo efetivo (já descontado o saldo)',
-      valorFioBPorKwh:'Fio B por kWh (rateio)',
       injecaoSemDescontoRS:'Injeção em R$ sem desconto', injecaoComDescontoRS:'Injeção em R$ com desconto (antes do Fio B)',
       valorSemSolar:'Valor sem solar', descontoRS:'Desconto concedido em R$', descontoReal:'Desconto real',
       somaComponentes:'Soma dos componentes da fatura (confere com o valor da fatura)',
       consumoAlocadoTotal:'Consumo total alocado nos pontos', fioBAlocadoTotal:'Fio B total alocado nos pontos',
-      liquidoTotal:'Total líquido (todos os pontos)', valorComSolar:'Valor com solar (líquido de Fio B)',
-      valorFioBEfetivo:'Fio B do ponto'
+      liquidoTotal:'Total líquido (todos os pontos)', valorComSolar:'Valor com solar (líquido de Fio B)'
     },
     formatosCampos: { descontoReal:'percentual' },
     textoIntroducao: 'Segue o resumo da injeção solar do mês de {referencia}, separado por ponto de consumo. Os valores já estão descontados do Fio B de cada ponto.'
@@ -801,6 +795,11 @@ async function loadAll(){
   if(state.profiles.length === 0){
     state.profiles = presetsPadrao();
     await saveProfiles();
+  } else {
+    /* Corrige automaticamente os modelos padrão (GD1/GD2) desatualizados a cada login,
+       sem depender do usuário clicar em "Atualizar modelos padrão". Só mostra aviso se
+       algo realmente mudou, pra não incomodar em todo login sem necessidade. */
+    await sincronizarModelosPadrao(true);
   }
   if(state.clients.length === 0){
     state.clients = seedClients(state.profiles);
@@ -901,6 +900,10 @@ function selectClient(id){ state.selectedClientId = id; state.activeTab = 'novo'
 function itemInputRowHtml(profile, nome, uc, valores){
   var rid = uid();
   var fieldsHtml = (profile.itemVariaveis||[]).map(function(v){
+    if(v.tipo === 'checkbox'){
+      var checked = (valores && valores[v.chave]!==undefined) ? !!valores[v.chave] : !!v.valorPadrao;
+      return '<div class="field field-checkbox"><label class="checkbox-field"><input type="checkbox" class="item-val item-val-checkbox" data-chave="'+v.chave+'"'+(checked?' checked':'')+'> '+escapeHtml(v.rotulo)+'</label></div>';
+    }
     var val = (valores && valores[v.chave]!==undefined) ? fmtNum(valores[v.chave]) : '';
     return '<div class="field"><label>'+escapeHtml(v.rotulo)+'</label><input type="text" inputmode="decimal" class="item-val" data-chave="'+v.chave+'" value="'+val+'" placeholder="0,00"></div>';
   }).join('');
@@ -1031,7 +1034,9 @@ function readItemRows(){
     var ucEl = row.querySelector('.item-uc');
     var uc = ucEl ? ucEl.value.trim() : '';
     var valores = {};
-    row.querySelectorAll('.item-val').forEach(function(inp){ valores[inp.dataset.chave] = parseNumBR(inp.value); });
+    row.querySelectorAll('.item-val').forEach(function(inp){
+      valores[inp.dataset.chave] = (inp.type === 'checkbox') ? (inp.checked ? 1 : 0) : parseNumBR(inp.value);
+    });
     itens.push(Object.assign({nome: nome, uc: uc}, valores));
   });
   return itens;
@@ -1059,7 +1064,9 @@ function lerFormularioBruto(){
     pontosContainer.querySelectorAll('.ponto-row').forEach(function(row){
       var ucEl = row.querySelector('.item-uc');
       var item = { nome: row.querySelector('.item-nome').value, uc: ucEl ? ucEl.value : '' };
-      row.querySelectorAll('.item-val').forEach(function(inp){ item[inp.dataset.chave] = inp.value; });
+      row.querySelectorAll('.item-val').forEach(function(inp){
+        item[inp.dataset.chave] = (inp.type === 'checkbox') ? (inp.checked ? '1' : '0') : inp.value;
+      });
       out.itens.push(item);
     });
   }
@@ -1106,6 +1113,71 @@ function restaurarRascunhoSeExistir(client, profile){
   onCalcular();
 }
 
+/* Para perfis com "distribuicaoAutomaticaPontos" ligado: um ponto é marcado como
+   "principal" (chave pontoPrincipal, tipo Sim/Não) — nele o usuário digita o consumo
+   e o Fio B reais, vindos da fatura daquele ponto específico. Os demais pontos não têm
+   fatura fechada ainda no mesmo mês (contas com datas de fechamento diferentes), então
+   o sistema calcula os dois automaticamente:
+     consumo do ponto = (injeção total do mês - consumo do(s) principal(is)) / nº de pontos não-principais
+     fio B do ponto    = consumo do ponto * (fio B do principal / consumo do principal)
+   Isso assume 100% da energia sendo repartida só entre os pontos cadastrados. */
+function aplicarDistribuicaoAutomatica(profile, itens, valoresEntrada){
+  if(!profile.distribuicaoAutomaticaPontos || !itens || itens.length < 2) return itens;
+  var chaveConsumo = 'consumoKwh';
+  var chaveFioB = profile.chaveItemFioB;
+  if(!chaveFioB) return itens;
+
+  var indicesPrincipais = [];
+  itens.forEach(function(it, i){ if(it.pontoPrincipal) indicesPrincipais.push(i); });
+  if(indicesPrincipais.length === 0){
+    indicesPrincipais = [0];
+    toast('Nenhum ponto marcado como "principal" — usando "' + (itens[0].nome||'Ponto 1') + '" como referência para o cálculo automático.');
+  } else if(indicesPrincipais.length > 1){
+    toast('Mais de um ponto marcado como "principal" — os dois foram usados como referência e o restante foi dividido entre os demais.');
+  }
+
+  var consumoPrincipalTotal = 0, fioBPrincipalTotal = 0;
+  indicesPrincipais.forEach(function(i){
+    consumoPrincipalTotal += itens[i][chaveConsumo] || 0;
+    fioBPrincipalTotal += itens[i][chaveFioB] || 0;
+  });
+  var taxaFioBPorKwh = consumoPrincipalTotal > 0 ? (fioBPrincipalTotal / consumoPrincipalTotal) : 0;
+
+  var injecaoTotal = valoresEntrada.injecaoTotal || 0;
+  var restante = injecaoTotal - consumoPrincipalTotal;
+  if(restante < 0) restante = 0;
+
+  var indicesSecundarios = itens.map(function(it,i){ return i; }).filter(function(i){ return indicesPrincipais.indexOf(i) === -1; });
+  var fatia = indicesSecundarios.length ? (restante / indicesSecundarios.length) : 0;
+
+  return itens.map(function(it, i){
+    if(indicesPrincipais.indexOf(i) > -1){ it.pontoPrincipal = 1; return it; }
+    it.pontoPrincipal = 0;
+    it[chaveConsumo] = fatia;
+    it[chaveFioB] = fatia * taxaFioBPorKwh;
+    return it;
+  });
+}
+
+/* Depois de calcular, escreve de volta nos campos da tela o consumo/Fio B que o sistema
+   calculou para os pontos não-principais, para o usuário ver exatamente o que foi usado
+   (os campos continuam editáveis, mas serão recalculados no próximo "Calcular orçamento"). */
+function refletirValoresCalculadosNoFormulario(profile, itens){
+  if(!profile.distribuicaoAutomaticaPontos) return;
+  var chaveConsumo = 'consumoKwh';
+  var chaveFioB = profile.chaveItemFioB;
+  var rows = document.querySelectorAll('#pontos-container .ponto-row');
+  rows.forEach(function(row, i){
+    var item = itens[i]; if(!item || item.pontoPrincipal) return;
+    var consumoInp = row.querySelector('.item-val[data-chave="'+chaveConsumo+'"]');
+    if(consumoInp) consumoInp.value = fmtNum(item[chaveConsumo]);
+    if(chaveFioB){
+      var fioBInp = row.querySelector('.item-val[data-chave="'+chaveFioB+'"]');
+      if(fioBInp) fioBInp.value = fmtNum(item[chaveFioB]);
+    }
+  });
+}
+
 function onCalcular(){
   var c = selectedClient(); if(!c) return;
   var profile = getProfile(c.profileId); if(!profile) return;
@@ -1118,6 +1190,10 @@ function onCalcular(){
   var valoresEntrada = Object.assign({}, fixos, mensais, { ajuste: ajuste });
 
   var itensInputRaw = profile.possuiItensMultiplos ? readItemRows() : null;
+  if(profile.possuiItensMultiplos && profile.distribuicaoAutomaticaPontos){
+    itensInputRaw = aplicarDistribuicaoAutomatica(profile, itensInputRaw, valoresEntrada);
+    refletirValoresCalculadosNoFormulario(profile, itensInputRaw);
+  }
 
   var resultado = avaliarPerfil(profile, valoresEntrada, itensInputRaw);
   if(!resultado.ok){
@@ -1756,16 +1832,24 @@ function varRowHtml(v, withCategoria){
       '<option value="mensal"'+(v.categoria==='mensal'?' selected':'')+'>Mensal</option>' +
       '<option value="fixo"'+(v.categoria==='fixo'?' selected':'')+'>Fixo do perfil</option>' +
     '</select>') : '';
+  /* "Tipo" só existe para variáveis de item (por ponto): a maioria é numérica, mas às
+     vezes um ponto precisa de uma marcação Sim/Não (ex.: "é o ponto principal?"). */
+  var tipoHtml = !withCategoria ? (
+    '<select class="v-tipo">' +
+      '<option value="numero"'+(v.tipo!=='checkbox'?' selected':'')+'>Número</option>' +
+      '<option value="checkbox"'+(v.tipo==='checkbox'?' selected':'')+'>Sim / Não</option>' +
+    '</select>') : '';
   return '<div class="var-row' + (withCategoria?'':' item-row') + '" data-var-id="' + rid + '">' +
     '<input type="text" class="v-rotulo" placeholder="Rótulo (ex: Consumo do mês)" value="' + escapeHtml(v.rotulo||'') + '">' +
     '<input type="text" class="v-chave" placeholder="chave" value="' + escapeHtml(v.chave||'') + '" data-touched="' + (v.chave?'1':'0') + '">' +
-    categoriaHtml +
+    categoriaHtml + tipoHtml +
     '<input type="text" inputmode="decimal" class="v-padrao" placeholder="valor padrão" value="' + (v.valorPadrao!==undefined?fmtNum(v.valorPadrao):'0') + '">' +
     '<select class="v-formato">' +
       '<option value="moeda"'+(v.formato==='moeda'?' selected':'')+'>R$</option>' +
       '<option value="kwh"'+(v.formato==='kwh'?' selected':'')+'>kWh</option>' +
       '<option value="percentual"'+(v.formato==='percentual'?' selected':'')+'>%</option>' +
       '<option value="numero"'+(v.formato==='numero'?' selected':'')+'>número</option>' +
+      '<option value="booleano"'+(v.formato==='booleano'?' selected':'')+'>Sim/Não</option>' +
     '</select>' +
     '<button type="button" class="rm-btn" data-action="'+(withCategoria?'remove-var-row':'remove-itemvar-row')+'" data-id="' + rid + '">✕</button>' +
   '</div>';
@@ -1779,9 +1863,15 @@ function readVarRows(containerId, withCategoria){
     var chave = row.querySelector('.v-chave').value.trim() || slugify(rotulo);
     var categoriaEl = row.querySelector('.v-categoria');
     var categoria = withCategoria && categoriaEl ? categoriaEl.value : 'mensal';
-    var valorPadrao = parseNumBR(row.querySelector('.v-padrao').value);
+    var tipoEl = row.querySelector('.v-tipo');
+    var tipo = (!withCategoria && tipoEl) ? tipoEl.value : 'numero';
+    var valorPadrao = tipo === 'checkbox'
+      ? (row.querySelector('.v-padrao') ? (parseNumBR(row.querySelector('.v-padrao').value) ? 1 : 0) : 0)
+      : parseNumBR(row.querySelector('.v-padrao').value);
     var formato = row.querySelector('.v-formato').value;
-    list.push({chave:chave, rotulo:rotulo, categoria:categoria, valorPadrao:valorPadrao, formato:formato});
+    var item = {chave:chave, rotulo:rotulo, categoria:categoria, valorPadrao:valorPadrao, formato:formato};
+    if(!withCategoria) item.tipo = tipo;
+    list.push(item);
   });
   return list;
 }
@@ -1815,7 +1905,7 @@ function novoPerfilVazio(){
     formulasCompartilhadas: ['precoComDesconto = 0'],
     itemVariaveis: [{chave:'consumoKwh', rotulo:'Consumo do ponto (kWh)', valorPadrao:0, formato:'kwh'}],
     itemFormulas: ['valorItem = consumoKwh * precoComDesconto'],
-    chaveItemFioB: null, rotuloItemFioBPrefixo: 'Fio B em ',
+    chaveItemFioB: null, rotuloItemFioBPrefixo: 'Fio B em ', distribuicaoAutomaticaPontos: false,
     formulasFinais: ['liquidoTotal = sum(itens_valorItem)', 'valorFinal = liquidoTotal - ajuste'],
     chaveTotalFinal: 'valorFinal', rotuloTotalCliente: 'VALOR FINAL A SER PAGO', rotuloItemPrefixo: 'Injeção em ',
     camposVisiveisCliente: [], textoIntroducao: 'Segue o resumo do orçamento de {referencia}:'
@@ -1828,7 +1918,7 @@ function renderProfileEditor(profile, overrideDraft){
   var container = document.getElementById('tab-content');
   var varsHeader = '<div class="var-header"><span>Rótulo</span><span>Chave</span><span>Categoria</span><span>Valor padrão</span><span>Formato</span><span></span></div>';
   var varsRows = (p.variaveis||[]).map(function(v){ return varRowHtml(v, true); }).join('');
-  var itemVarsHeader = '<div class="var-header item-header"><span>Rótulo</span><span>Chave</span><span>Valor padrão</span><span>Formato</span><span></span></div>';
+  var itemVarsHeader = '<div class="var-header item-header"><span>Rótulo</span><span>Chave</span><span>Tipo</span><span>Valor padrão</span><span>Formato</span><span></span></div>';
   var itemVarsRows = (p.itemVariaveis||[]).map(function(v){ return varRowHtml(v, false); }).join('');
 
   var multiSection = '';
@@ -1838,13 +1928,15 @@ function renderProfileEditor(profile, overrideDraft){
         '<div class="formula-box"><textarea id="pe-formulas-compartilhadas" spellcheck="false">' + escapeHtml((p.formulasCompartilhadas||[]).join('\n')) + '</textarea>' +
         '<span class="hint">Uma atribuição por linha, ex.: precoComDesconto = precoBase*(1-desconto) + taxaBandeira</span></div>' +
       '</fieldset>' +
+      '<label class="checkbox-field" style="margin:4px 0 12px"><input type="checkbox" id="pe-distribuicao-auto"' + (p.distribuicaoAutomaticaPontos?' checked':'') + '> Calcular automaticamente o consumo/Fio B dos outros pontos, usando um "ponto principal" informado</label>' +
+      '<p class="hint" style="margin:-8px 0 12px">Quando ligado: marque, na lista de variáveis do item abaixo, uma variável do tipo "Sim/Não" com a chave <code class="mono">pontoPrincipal</code> e uma numérica com a chave <code class="mono">consumoKwh</code>. No ponto marcado como principal, você digita o consumo e o Fio B reais (vindos da fatura dele). Nos demais pontos, o sistema calcula: consumo = variável mensal <code class="mono">injecaoTotal</code> menos o consumo do(s) ponto(s) principal(is), dividido entre os pontos não-principais; e o Fio B usa a mesma proporção R$/kWh do ponto principal (definido no campo "Qual variável do item mostrar separadamente ao cliente?" abaixo).</p>' +
       '<fieldset><legend>Variáveis por item (preenchidas a cada ponto de consumo)</legend>' +
         '<div id="pe-item-vars">' + itemVarsHeader + itemVarsRows + '</div>' +
         '<button type="button" class="add-var-btn" data-action="add-itemvar-row">+ Adicionar variável do item</button>' +
       '</fieldset>' +
       '<fieldset><legend>Fórmula do item (uma ou mais linhas, roda para cada ponto)</legend>' +
         '<div class="formula-box"><textarea id="pe-item-formulas" spellcheck="false">' + escapeHtml((p.itemFormulas||(p.itemFormula?[p.itemFormula]:[])).join('\n')) + '</textarea>' +
-        '<span class="hint">Uma atribuição por linha. A última linha é o valor total do ponto. Ex.: valorFioBEfetivo = se(fioBManual&gt;0, fioBManual, consumoKwh*valorFioBPorKwh) / valorItem = consumoKwh*precoComDesconto - valorFioBEfetivo</span></div>' +
+        '<span class="hint">Uma atribuição por linha. A última linha é o valor total do ponto. Ex.: valorItem = consumoKwh*precoComDesconto - fioBPonto</span></div>' +
       '</fieldset>' +
       '<fieldset><legend>Fórmulas finais (após somar os itens)</legend>' +
         '<div class="formula-box"><textarea id="pe-formulas-finais" spellcheck="false">' + escapeHtml((p.formulasFinais||[]).join('\n')) + '</textarea>' +
@@ -1935,12 +2027,14 @@ function lerProfileDoFormulario(){
     p.chaveItemFioB = fioBSel && fioBSel.value ? fioBSel.value : null;
     var riFioBEl = document.getElementById('pe-rotulo-item-fiob');
     p.rotuloItemFioBPrefixo = riFioBEl ? riFioBEl.value : 'Fio B em ';
+    var distAutoEl = document.getElementById('pe-distribuicao-auto');
+    p.distribuicaoAutomaticaPontos = distAutoEl ? distAutoEl.checked : false;
     p.formulas = [];
   } else {
     var fe = document.getElementById('pe-formulas');
     p.formulas = fe ? fe.value.split('\n') : [];
     p.formulasCompartilhadas = []; p.itemVariaveis = []; p.itemFormulas = []; p.formulasFinais = [];
-    p.chaveItemFioB = null; p.rotuloItemFioBPrefixo = '';
+    p.chaveItemFioB = null; p.rotuloItemFioBPrefixo = ''; p.distribuicaoAutomaticaPontos = false;
   }
   var totalSel = document.getElementById('pe-total-final');
   p.chaveTotalFinal = totalSel ? totalSel.value : '';
@@ -2141,24 +2235,45 @@ async function salvarDocConfig(){
   toast('Personalização do documento salva.');
 }
 
-async function atualizarModelosPadrao(){
+/* Compara e aplica as correções dos modelos padrão (GD1/GD2) automaticamente.
+   Só mexe em perfis com isPreset:true — no momento em que o usuário edita ou
+   duplica um preset, o próprio código já marca isPreset:false (ver salvarPerfil
+   e duplicarPerfil), então perfis personalizados NUNCA são tocados aqui.
+   mostrarToast=true: sempre avisa (usado pelo botão manual).
+   mostrarToast=false: só avisa se algo realmente mudou (usado no login automático),
+   para não incomodar o usuário toda vez que abrir o app sem necessidade. */
+async function sincronizarModelosPadrao(mostrarToast){
   var novos = presetsPadrao();
   var atualizados = 0, adicionados = 0;
   novos.forEach(function(np){
     var existente = state.profiles.find(function(p){ return p.isPreset && p.nome === np.nome; });
     if(existente){
-      np.id = existente.id; /* preserva o id: clientes já vinculados continuam apontando certo */
-      var idx = state.profiles.indexOf(existente);
-      state.profiles[idx] = np;
-      atualizados++;
+      var comparavel = Object.assign({}, np, { id: existente.id });
+      var mudou = JSON.stringify(existente) !== JSON.stringify(comparavel);
+      if(mudou){
+        np.id = existente.id; /* preserva o id: clientes já vinculados continuam apontando certo */
+        var idx = state.profiles.indexOf(existente);
+        state.profiles[idx] = np;
+        atualizados++;
+      }
     } else {
       state.profiles.push(np);
       adicionados++;
     }
   });
-  await saveProfiles();
+  if(atualizados > 0 || adicionados > 0){
+    await saveProfiles();
+    if(mostrarToast){
+      toast('Modelos padrão atualizados (' + atualizados + ' corrigidos, ' + adicionados + ' novos). Clientes e orçamentos não foram alterados.');
+    }
+  } else if(mostrarToast){
+    toast('Os modelos padrão já estavam atualizados.');
+  }
+  return { atualizados: atualizados, adicionados: adicionados };
+}
+async function atualizarModelosPadrao(){
+  await sincronizarModelosPadrao(true);
   renderTabContent();
-  toast('Modelos padrão atualizados (' + atualizados + ' corrigidos, ' + adicionados + ' novos). Clientes e orçamentos não foram alterados.');
 }
 async function resetAllData(){
   state.profiles = presetsPadrao();
