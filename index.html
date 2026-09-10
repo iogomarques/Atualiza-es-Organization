@@ -532,15 +532,19 @@ function avaliarPerfil(profile, valoresEntrada, itensInput){
         try{ runLine(line, scope); }
         catch(e){ throw {linha: idx+1, texto: line, mensagem: e.message, secao:'compartilhadas'}; }
       });
-      var itemKey = parseAssignKey(profile.itemFormula);
+      var itemFormulasEfetivas = (profile.itemFormulas && profile.itemFormulas.length) ? profile.itemFormulas : (profile.itemFormula ? [profile.itemFormula] : []);
+      var linhasItem = linhasExecutaveis(itemFormulasEfetivas);
+      var itemKey = linhasItem.length ? parseAssignKey(linhasItem[linhasItem.length-1]) : null;
       var itensResultado = (itensInput||[]).map(function(itemVals, i){
         var itemScope = Object.assign({}, scope, itemVals);
-        try{ runLine(profile.itemFormula, itemScope); }
-        catch(e){ throw {linha:1, texto: profile.itemFormula, mensagem: e.message, secao:'item', itemIndex:i}; }
+        linhasItem.forEach(function(line, idx){
+          try{ runLine(line, itemScope); }
+          catch(e){ throw {linha: idx+1, texto: line, mensagem: e.message, secao:'item', itemIndex:i}; }
+        });
         return itemScope;
       });
       var chavesItem = (profile.itemVariaveis||[]).map(function(v){ return v.chave; });
-      if(itemKey && chavesItem.indexOf(itemKey)===-1) chavesItem.push(itemKey);
+      linhasItem.forEach(function(line){ var k = parseAssignKey(line); if(k && chavesItem.indexOf(k)===-1) chavesItem.push(k); });
       chavesItem.forEach(function(k){
         scope['itens_'+k] = itensResultado.map(function(r){ return r[k]; });
       });
@@ -657,7 +661,8 @@ function presetGD1(){
       'precoSemDesconto = precoBase + taxaBandeira',
       'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
       'injecaoEfetiva = injecaoTotal - saldoDelta',
-      'contaEnergiaRS = precoSemDesconto * consumoTotal',
+      'consumoEfetivo = consumoTotal - saldoDelta',
+      'contaEnergiaRS = precoSemDesconto * consumoEfetivo',
       'injecaoSemDescontoRS = precoSemDesconto * injecaoEfetiva',
       'injecaoComDescontoRS = precoComDesconto * injecaoEfetiva - fioB',
       'multasEAdicionais = multas + adicionais',
@@ -674,7 +679,7 @@ function presetGD1(){
     camposVisiveisCliente: ['injecaoTotal','valorFaturaImpresso','multasEAdicionais','valorSemSolar'],
     rotulosCampos: {
       precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
-      injecaoEfetiva:'Injeção efetiva (já descontado o saldo)',
+      injecaoEfetiva:'Injeção efetiva (já descontado o saldo)', consumoEfetivo:'Consumo efetivo (já descontado o saldo)',
       contaEnergiaRS:'Conta de energia (tarifa cheia)', injecaoSemDescontoRS:'Injeção em R$ sem desconto',
       injecaoComDescontoRS:'Injeção em R$ com desconto (líquido de Fio B)', multasEAdicionais:'Multas e adicionais',
       somaComponentes:'Soma dos componentes da fatura', valorSemSolar:'Valor sem solar',
@@ -702,7 +707,7 @@ function presetGD2ComFioBUnico(){
 function presetGD2ComFioBMultiplos(){
   return {
     id: uid(), isPreset: true, nome: 'GD2 com Fio B — múltiplos pontos',
-    descricao: 'Vários pontos de consumo (ex.: casa + comercial) dividindo a mesma injeção solar. O Fio B é rateado automaticamente pelo consumo de cada ponto (com base na energia ativa da fatura), mas pode ser sobrescrito manualmente por ponto quando um deles tiver o Fio B informado na própria conta.',
+    descricao: 'Vários pontos de consumo (ex.: casa + comercial), cada um com sua própria UC, dividindo a mesma injeção solar. O Fio B é rateado automaticamente pelo consumo de cada ponto (com base na energia ativa da fatura), mas pode ser sobrescrito manualmente por ponto quando um deles tiver o Fio B informado na própria conta — e é sempre mostrado separadamente ao cliente.',
     possuiItensMultiplos: true,
     variaveis: [
       {chave:'precoBase', rotulo:'Preço do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
@@ -712,7 +717,7 @@ function presetGD2ComFioBMultiplos(){
       {chave:'injecaoTotal', rotulo:'Injeção total (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'saldoDelta', rotulo:'Saldo — variação do mês (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'injecaoNaConta', rotulo:'Injeção que aparece na conta (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
-      {chave:'energiaAtiva', rotulo:'Energia ativa (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'energiaAtiva', rotulo:'Energia ativa consumida (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'fioB', rotulo:'Fio B total da fatura (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'iluminacao', rotulo:'Iluminação pública (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'adicionais', rotulo:'Adicionais (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
@@ -724,20 +729,26 @@ function presetGD2ComFioBMultiplos(){
       'precoSemDesconto = precoBase + taxaBandeira',
       'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
       'injecaoEfetiva = injecaoTotal - saldoDelta',
+      'consumoEfetivo = consumoTotal - saldoDelta',
       'valorFioBPorKwh = se(energiaAtiva > 0, fioB/energiaAtiva, 0)',
       'injecaoSemDescontoRS = injecaoEfetiva * precoSemDesconto',
       'injecaoComDescontoRS = injecaoEfetiva * precoComDesconto',
-      'valorSemSolar = consumoTotal * precoSemDesconto',
+      'valorSemSolar = consumoEfetivo * precoSemDesconto',
       'descontoRS = injecaoSemDescontoRS - injecaoComDescontoRS',
-      'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)'
+      'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)',
+      'somaComponentes = gastoNaoCompensado + adicionalBandeira + adicionais + iluminacao + fioB'
     ],
     itemVariaveis: [
       {chave:'consumoKwh', rotulo:'Consumo do ponto (kWh)', valorPadrao:0, formato:'kwh'},
       {chave:'fioBManual', rotulo:'Fio B deste ponto (R$) — deixe 0 para ratear automaticamente', valorPadrao:0, formato:'moeda'}
     ],
-    itemFormula: 'valorItem = consumoKwh*precoComDesconto - se(fioBManual > 0, fioBManual, consumoKwh*valorFioBPorKwh)',
+    itemFormulas: [
+      'valorFioBEfetivo = se(fioBManual > 0, fioBManual, consumoKwh*valorFioBPorKwh)',
+      'valorItem = consumoKwh*precoComDesconto - valorFioBEfetivo'
+    ],
     formulasFinais: [
       'consumoAlocadoTotal = sum(itens_consumoKwh)',
+      'fioBAlocadoTotal = sum(itens_valorFioBEfetivo)',
       'liquidoTotal = sum(itens_valorItem)',
       'valorComSolar = liquidoTotal',
       'valorFinal = liquidoTotal - ajuste'
@@ -745,14 +756,20 @@ function presetGD2ComFioBMultiplos(){
     chaveTotalFinal: 'valorFinal',
     rotuloTotalCliente: 'VALOR A SER PAGO (TOTAL)',
     rotuloItemPrefixo: 'Injeção em ',
+    chaveItemFioB: 'valorFioBEfetivo',
+    rotuloItemFioBPrefixo: 'Fio B em ',
     camposVisiveisCliente: [],
+    camposItemVisiveisCliente: ['valorFioBEfetivo'],
     rotulosCampos: {
       precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
-      injecaoEfetiva:'Injeção efetiva (já descontado o saldo)', valorFioBPorKwh:'Fio B por kWh (rateio)',
+      injecaoEfetiva:'Injeção efetiva (já descontado o saldo)', consumoEfetivo:'Consumo efetivo (já descontado o saldo)',
+      valorFioBPorKwh:'Fio B por kWh (rateio)',
       injecaoSemDescontoRS:'Injeção em R$ sem desconto', injecaoComDescontoRS:'Injeção em R$ com desconto (antes do Fio B)',
       valorSemSolar:'Valor sem solar', descontoRS:'Desconto concedido em R$', descontoReal:'Desconto real',
-      consumoAlocadoTotal:'Consumo total alocado nos pontos', liquidoTotal:'Total líquido (todos os pontos)',
-      valorComSolar:'Valor com solar (líquido de Fio B)'
+      somaComponentes:'Soma dos componentes da fatura (confere com o valor da fatura)',
+      consumoAlocadoTotal:'Consumo total alocado nos pontos', fioBAlocadoTotal:'Fio B total alocado nos pontos',
+      liquidoTotal:'Total líquido (todos os pontos)', valorComSolar:'Valor com solar (líquido de Fio B)',
+      valorFioBEfetivo:'Fio B do ponto'
     },
     formatosCampos: { descontoReal:'percentual' },
     textoIntroducao: 'Segue o resumo da injeção solar do mês de {referencia}, separado por ponto de consumo. Os valores já estão descontados do Fio B de cada ponto.'
@@ -881,7 +898,7 @@ function selectClient(id){ state.selectedClientId = id; state.activeTab = 'novo'
 /* ============================================================
    NOVO ORÇAMENTO
    ============================================================ */
-function itemInputRowHtml(profile, nome, valores){
+function itemInputRowHtml(profile, nome, uc, valores){
   var rid = uid();
   var fieldsHtml = (profile.itemVariaveis||[]).map(function(v){
     var val = (valores && valores[v.chave]!==undefined) ? fmtNum(valores[v.chave]) : '';
@@ -889,6 +906,7 @@ function itemInputRowHtml(profile, nome, valores){
   }).join('');
   return '<div class="ponto-row" data-ponto-id="'+rid+'">' +
     '<div class="field f-nome"><label>Ponto</label><input type="text" class="item-nome" value="'+escapeHtml(nome||'')+'" placeholder="Ex.: Casa"></div>' +
+    '<div class="field f-nome"><label>UC (unidade consumidora)</label><input type="text" class="item-uc" value="'+escapeHtml(uc||'')+'" placeholder="Ex.: 12345678"></div>' +
     fieldsHtml +
     '<button type="button" class="rm-btn" data-action="remove-ponto" data-id="'+rid+'" title="Remover ponto">✕</button>' +
   '</div>';
@@ -897,7 +915,7 @@ function addPontoRow(){
   var wrap = document.getElementById('pontos-container');
   var c = selectedClient(); var profile = getProfile(c.profileId);
   if(!wrap || !profile) return;
-  wrap.insertAdjacentHTML('beforeend', itemInputRowHtml(profile, '', null));
+  wrap.insertAdjacentHTML('beforeend', itemInputRowHtml(profile, '', '', null));
 }
 function removePontoRow(id){
   var wrap = document.getElementById('pontos-container');
@@ -908,6 +926,13 @@ function removePontoRow(id){
   if(row) row.remove();
 }
 
+function pontosPadraoDoCliente(client){
+  if(client.pontosPadrao && client.pontosPadrao.length) return client.pontosPadrao;
+  if(client.itensNomes && client.itensNomes.length){
+    return client.itensNomes.map(function(n){ return { nome: n, uc: '' }; });
+  }
+  return [{ nome: 'Ponto 1', uc: '' }];
+}
 function fixosEfetivos(client, profile){
   var out = {};
   (profile.variaveis||[]).filter(function(v){ return v.categoria === 'fixo'; }).forEach(function(v){
@@ -964,8 +989,8 @@ function renderNovoOrcamento(){
         camposMensaisHtml + '</fieldset>' +
       camposAdendo;
   } else {
-    var pontosSeed = (c.itensNomes && c.itensNomes.length) ? c.itensNomes : ['Ponto 1'];
-    var pontosHtml = pontosSeed.map(function(nome){ return itemInputRowHtml(profile, nome, null); }).join('');
+    var pontosSeed = pontosPadraoDoCliente(c);
+    var pontosHtml = pontosSeed.map(function(p){ return itemInputRowHtml(profile, p.nome, p.uc, null); }).join('');
     var camposCompartilhadosHtml = mensalVars.map(function(v){
       return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="" placeholder="0,00"></div>';
     }).join('');
@@ -1003,9 +1028,11 @@ function readItemRows(){
   var itens = [];
   rows.forEach(function(row){
     var nome = row.querySelector('.item-nome').value.trim() || 'Ponto';
+    var ucEl = row.querySelector('.item-uc');
+    var uc = ucEl ? ucEl.value.trim() : '';
     var valores = {};
     row.querySelectorAll('.item-val').forEach(function(inp){ valores[inp.dataset.chave] = parseNumBR(inp.value); });
-    itens.push(Object.assign({nome: nome}, valores));
+    itens.push(Object.assign({nome: nome, uc: uc}, valores));
   });
   return itens;
 }
@@ -1030,7 +1057,8 @@ function lerFormularioBruto(){
   if(pontosContainer){
     out.itens = [];
     pontosContainer.querySelectorAll('.ponto-row').forEach(function(row){
-      var item = { nome: row.querySelector('.item-nome').value };
+      var ucEl = row.querySelector('.item-uc');
+      var item = { nome: row.querySelector('.item-nome').value, uc: ucEl ? ucEl.value : '' };
       row.querySelectorAll('.item-val').forEach(function(inp){ item[inp.dataset.chave] = inp.value; });
       out.itens.push(item);
     });
@@ -1069,8 +1097,8 @@ function restaurarRascunhoSeExistir(client, profile){
     if(wrap){
       wrap.innerHTML = rascunho.itens.map(function(it){
         var valores = {};
-        Object.keys(it).forEach(function(k){ if(k !== 'nome') valores[k] = parseNumBR(it[k]); });
-        return itemInputRowHtml(profile, it.nome, valores);
+        Object.keys(it).forEach(function(k){ if(k !== 'nome' && k !== 'uc') valores[k] = parseNumBR(it[k]); });
+        return itemInputRowHtml(profile, it.nome, it.uc, valores);
       }).join('');
     }
   }
@@ -1131,8 +1159,13 @@ function buildLetter(client, profile, draft){
 
   if(profile.possuiItensMultiplos && draft.itensResultado){
     var prefixo = profile.rotuloItemPrefixo || 'Injeção em ';
+    var prefixoFioB = profile.rotuloItemFioBPrefixo || 'Fio B em ';
     draft.itensResultado.forEach(function(item){
-      linhas.push('• ' + prefixo + item.nome + ': ' + fmtBRL(item[draft.chaveItemValor]));
+      var nomeComUc = item.nome + (item.uc ? ' (UC ' + item.uc + ')' : '');
+      linhas.push('• ' + prefixo + nomeComUc + ': ' + fmtBRL(item[draft.chaveItemValor]));
+      if(profile.chaveItemFioB && item[profile.chaveItemFioB] !== undefined){
+        linhas.push('• ' + prefixoFioB + item.nome + ': ' + fmtBRL(item[profile.chaveItemFioB]));
+      }
     });
   }
 
@@ -1182,8 +1215,14 @@ function renderPreview(){
       dashHtml += row(rotuloCampo(profile,k), formatarValor(scope[k], formatoCampo(profile,k)));
     });
     (d.itensResultado||[]).forEach(function(item){
-      dashHtml += '<div class="ponto-breakdown"><div class="nome">' + escapeHtml(item.nome) + '</div>';
+      var nomeExibicao = item.nome + (item.uc ? ' — UC ' + item.uc : '');
+      dashHtml += '<div class="ponto-breakdown"><div class="nome">' + escapeHtml(nomeExibicao) + '</div>';
       (profile.itemVariaveis||[]).forEach(function(v){ dashHtml += row(v.rotulo, formatarValor(item[v.chave], v.formato)); });
+      linhasExecutaveis(profile.itemFormulas).forEach(function(line){
+        var k = parseAssignKey(line);
+        if(!k || k === d.chaveItemValor) return;
+        dashHtml += row(rotuloCampo(profile,k), formatarValor(item[k], formatoCampo(profile,k)));
+      });
       dashHtml += row('Valor do item (' + d.chaveItemValor + ')', fmtBRL(item[d.chaveItemValor]), true);
       dashHtml += '</div>';
     });
@@ -1289,7 +1328,7 @@ function duplicarQuote(id){
   if(q.itens && q.itens.length){
     var profile = getProfile(q.profileId);
     var wrap = document.getElementById('pontos-container');
-    if(wrap && profile){ wrap.innerHTML = q.itens.map(function(it){ return itemInputRowHtml(profile, it.nome, it); }).join(''); }
+    if(wrap && profile){ wrap.innerHTML = q.itens.map(function(it){ return itemInputRowHtml(profile, it.nome, it.uc, it); }).join(''); }
   }
   toast('Dados carregados. Ajuste os valores e clique em Calcular.');
 }
@@ -1484,13 +1523,24 @@ async function baixarPdf(modo){
         checkBreak(16);
         linhaSeparadora(y);
         y += 12;
+        var linhasItemPdf = linhasExecutaveis(profile.itemFormulas);
         d.itensResultado.forEach(function(item){
           checkBreak(14);
+          var nomeComUc = item.nome + (item.uc ? ' (UC ' + item.uc + ')' : '');
           doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(92,111,99);
-          doc.text(prefixo + item.nome + ' (' + fmtKwh(item.consumoKwh||0) + ')', marginX, y);
+          doc.text(prefixo + nomeComUc + ' — ' + fmtKwh(item.consumoKwh||0), marginX, y);
           doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
           doc.text(fmtBRL(item[d.chaveItemValor]), pageW - marginX, y, { align:'right' });
-          y += 13;
+          y += 12;
+          linhasItemPdf.forEach(function(line){
+            var k = parseAssignKey(line);
+            if(!k || k === d.chaveItemValor) return;
+            checkBreak(11);
+            doc.setFont('helvetica','normal'); doc.setFontSize(7.8); doc.setTextColor(120,132,124);
+            doc.text('   ' + rotuloCampo(profile,k) + ': ' + formatarValor(item[k], formatoCampo(profile,k)), marginX, y);
+            y += 10;
+          });
+          y += 3;
         });
       }
 
@@ -1589,15 +1639,27 @@ async function baixarPdf(modo){
 
       if(profile.possuiItensMultiplos && d.itensResultado){
         var prefixoC = profile.rotuloItemPrefixo || 'Injeção em ';
+        var prefixoFioBC = profile.rotuloItemFioBPrefixo || 'Fio B em ';
         d.itensResultado.forEach(function(item){
           checkBreak(20);
+          var nomeComUcC = item.nome + (item.uc ? ' (UC ' + item.uc + ')' : '');
           doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
-          doc.text(prefixoC + item.nome, marginX, y);
+          doc.text(prefixoC + nomeComUcC, marginX, y);
           doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
           doc.text(fmtBRL(item[d.chaveItemValor]), pageW - marginX, y, { align:'right' });
           y += 8;
           linhaSeparadora(y);
           y += 14;
+          if(profile.chaveItemFioB && item[profile.chaveItemFioB] !== undefined){
+            checkBreak(20);
+            doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
+            doc.text(prefixoFioBC + item.nome, marginX, y);
+            doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
+            doc.text(fmtBRL(item[profile.chaveItemFioB]), pageW - marginX, y, { align:'right' });
+            y += 8;
+            linhaSeparadora(y);
+            y += 14;
+          }
         });
       }
 
@@ -1752,7 +1814,8 @@ function novoPerfilVazio(){
     formulas: ['valorFinal = valorFaturaImpresso - ajuste'],
     formulasCompartilhadas: ['precoComDesconto = 0'],
     itemVariaveis: [{chave:'consumoKwh', rotulo:'Consumo do ponto (kWh)', valorPadrao:0, formato:'kwh'}],
-    itemFormula: 'valorItem = consumoKwh * precoComDesconto',
+    itemFormulas: ['valorItem = consumoKwh * precoComDesconto'],
+    chaveItemFioB: null, rotuloItemFioBPrefixo: 'Fio B em ',
     formulasFinais: ['liquidoTotal = sum(itens_valorItem)', 'valorFinal = liquidoTotal - ajuste'],
     chaveTotalFinal: 'valorFinal', rotuloTotalCliente: 'VALOR FINAL A SER PAGO', rotuloItemPrefixo: 'Injeção em ',
     camposVisiveisCliente: [], textoIntroducao: 'Segue o resumo do orçamento de {referencia}:'
@@ -1779,15 +1842,17 @@ function renderProfileEditor(profile, overrideDraft){
         '<div id="pe-item-vars">' + itemVarsHeader + itemVarsRows + '</div>' +
         '<button type="button" class="add-var-btn" data-action="add-itemvar-row">+ Adicionar variável do item</button>' +
       '</fieldset>' +
-      '<fieldset><legend>Fórmula do item (uma linha, roda para cada ponto)</legend>' +
-        '<div class="formula-box"><input type="text" id="pe-item-formula" style="font-family:var(--mono);width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:3px" value="' + escapeHtml(p.itemFormula||'') + '">' +
-        '<span class="hint">Ex.: valorItem = consumoKwh*precoComDesconto - fioB</span></div>' +
+      '<fieldset><legend>Fórmula do item (uma ou mais linhas, roda para cada ponto)</legend>' +
+        '<div class="formula-box"><textarea id="pe-item-formulas" spellcheck="false">' + escapeHtml((p.itemFormulas||(p.itemFormula?[p.itemFormula]:[])).join('\n')) + '</textarea>' +
+        '<span class="hint">Uma atribuição por linha. A última linha é o valor total do ponto. Ex.: valorFioBEfetivo = se(fioBManual&gt;0, fioBManual, consumoKwh*valorFioBPorKwh) / valorItem = consumoKwh*precoComDesconto - valorFioBEfetivo</span></div>' +
       '</fieldset>' +
       '<fieldset><legend>Fórmulas finais (após somar os itens)</legend>' +
         '<div class="formula-box"><textarea id="pe-formulas-finais" spellcheck="false">' + escapeHtml((p.formulasFinais||[]).join('\n')) + '</textarea>' +
         '<span class="hint">Use itens_&lt;chave&gt; para agregações, ex.: sum(itens_valorItem). Variável sempre disponível: ajuste.</span></div>' +
       '</fieldset>' +
-      '<div class="field"><label>Rótulo de cada item no documento do cliente</label><input type="text" id="pe-rotulo-item" value="' + escapeHtml(p.rotuloItemPrefixo||'Injeção em ') + '"><span class="hint">Aparece antes do nome do ponto, ex.: "Injeção em Casa: R$ ..."</span></div>';
+      '<div class="field"><label>Rótulo de cada item no documento do cliente</label><input type="text" id="pe-rotulo-item" value="' + escapeHtml(p.rotuloItemPrefixo||'Injeção em ') + '"><span class="hint">Aparece antes do nome do ponto, ex.: "Injeção em Casa: R$ ..."</span></div>' +
+      '<div class="field"><label>Qual variável do item mostrar separadamente ao cliente? (opcional, ex.: Fio B)</label><select id="pe-item-fiob-chave"></select><span class="hint">Deixe em "(nenhuma)" se não precisar mostrar um valor extra por ponto.</span></div>' +
+      '<div class="field"><label>Rótulo desse valor extra por ponto</label><input type="text" id="pe-rotulo-item-fiob" value="' + escapeHtml(p.rotuloItemFioBPrefixo||'Fio B em ') + '"></div>';
   } else {
     multiSection =
       '<fieldset><legend>Fórmulas (uma atribuição por linha, executadas em ordem)</legend>' +
@@ -1826,6 +1891,7 @@ function renderProfileEditor(profile, overrideDraft){
     '</div>';
 
   popularSelectTotalFinal(p);
+  popularSelectItemFioB(p);
   popularChecklistCampos(p, p.camposVisiveisCliente||[]);
   document.getElementById('pe-multiplos').addEventListener('change', function(e){
     toggleMultiploFields(e.target.checked, profile);
@@ -1859,17 +1925,22 @@ function lerProfileDoFormulario(){
     var fc = document.getElementById('pe-formulas-compartilhadas');
     p.formulasCompartilhadas = fc ? fc.value.split('\n') : [];
     p.itemVariaveis = document.getElementById('pe-item-vars') ? readVarRows('pe-item-vars', false) : [];
-    var ifEl = document.getElementById('pe-item-formula');
-    p.itemFormula = ifEl ? ifEl.value : '';
+    var ifEl = document.getElementById('pe-item-formulas');
+    p.itemFormulas = ifEl ? ifEl.value.split('\n') : [];
     var ff = document.getElementById('pe-formulas-finais');
     p.formulasFinais = ff ? ff.value.split('\n') : [];
     var riEl = document.getElementById('pe-rotulo-item');
     p.rotuloItemPrefixo = riEl ? riEl.value : 'Injeção em ';
+    var fioBSel = document.getElementById('pe-item-fiob-chave');
+    p.chaveItemFioB = fioBSel && fioBSel.value ? fioBSel.value : null;
+    var riFioBEl = document.getElementById('pe-rotulo-item-fiob');
+    p.rotuloItemFioBPrefixo = riFioBEl ? riFioBEl.value : 'Fio B em ';
     p.formulas = [];
   } else {
     var fe = document.getElementById('pe-formulas');
     p.formulas = fe ? fe.value.split('\n') : [];
-    p.formulasCompartilhadas = []; p.itemVariaveis = []; p.itemFormula = ''; p.formulasFinais = [];
+    p.formulasCompartilhadas = []; p.itemVariaveis = []; p.itemFormulas = []; p.formulasFinais = [];
+    p.chaveItemFioB = null; p.rotuloItemFioBPrefixo = '';
   }
   var totalSel = document.getElementById('pe-total-final');
   p.chaveTotalFinal = totalSel ? totalSel.value : '';
@@ -1893,6 +1964,17 @@ function popularSelectTotalFinal(p){
   linhas.forEach(function(line){ var k = parseAssignKey(line); if(k && chaves.indexOf(k)===-1) chaves.push(k); });
   sel.innerHTML = chaves.map(function(k){ return '<option value="'+k+'"'+(k===p.chaveTotalFinal?' selected':'')+'>'+k+'</option>'; }).join('');
   if(!p.chaveTotalFinal && chaves.length){ sel.value = chaves[chaves.length-1]; }
+}
+function popularSelectItemFioB(p){
+  var sel = document.getElementById('pe-item-fiob-chave');
+  if(!sel) return;
+  if(!p.possuiItensMultiplos){ sel.innerHTML = ''; return; }
+  var chaves = (p.itemVariaveis||[]).map(function(v){ return v.chave; });
+  linhasExecutaveis(p.itemFormulas).forEach(function(line){ var k = parseAssignKey(line); if(k && chaves.indexOf(k)===-1) chaves.push(k); });
+  var opcoes = '<option value="">(nenhuma)</option>' + chaves.map(function(k){
+    return '<option value="'+k+'"'+(k===p.chaveItemFioB?' selected':'')+'>'+k+'</option>';
+  }).join('');
+  sel.innerHTML = opcoes;
 }
 function popularChecklistCampos(p, selecionados){
   var el = document.getElementById('pe-campos-visiveis');
@@ -1934,6 +2016,7 @@ function onTestarFormulas(){
   var selectedBefore = document.getElementById('pe-total-final') ? document.getElementById('pe-total-final').value : p.chaveTotalFinal;
   p.chaveTotalFinal = selectedBefore;
   popularSelectTotalFinal(p);
+  popularSelectItemFioB(p);
   var selecionadosAntes = Array.prototype.slice.call(document.querySelectorAll('.campo-visivel-editor:checked')).map(function(cb){ return cb.dataset.chave; });
   popularChecklistCampos(p, selecionadosAntes);
 
@@ -2124,8 +2207,9 @@ function openClientModal(id){
         '</select></div>' +
         '<div class="field" id="m-fixos-wrap"><label>Valores fixos deste cliente</label><div id="m-fixos">' + renderClientOverridesFixos(profileAtual, editing?editing.overridesFixos:null) + '</div></div>' +
         '<div class="field" id="m-pontos-field" style="' + (profileAtual&&profileAtual.possuiItensMultiplos?'':'display:none') + '">' +
-          '<label>Nomes dos pontos (um por linha)</label>' +
-          '<textarea id="m-pontos" placeholder="Casa\nBeach Tennis">' + escapeHtml(editing&&editing.itensNomes?editing.itensNomes.join('\n'):'') + '</textarea>' +
+          '<label>Pontos de consumo (um por linha)</label>' +
+          '<textarea id="m-pontos" placeholder="Casa - 12345678\nBeach Tennis - 87654321">' + escapeHtml(editing ? pontosPadraoDoCliente(editing).map(function(p){ return p.nome + (p.uc ? ' - ' + p.uc : ''); }).join('\n') : '') + '</textarea>' +
+          '<span class="hint">Formato: Nome - UC (a UC é opcional). Esses nomes/UCs pré-preenchem o orçamento todo mês.</span>' +
         '</div>' +
         '<div class="field-row">' +
           '<div class="field"><label>Chave Pix</label><input type="text" id="m-pix" value="' + (editing?escapeHtml(editing.chavePix):'') + '"></div>' +
@@ -2155,11 +2239,15 @@ async function saveClientFromModal(existingId){
   var overridesFixos = {};
   document.querySelectorAll('.m-fixo').forEach(function(inp){ overridesFixos[inp.dataset.chave] = parseNumBR(inp.value); });
   var pontosTexto = txt('m-pontos');
-  var itensNomes = pontosTexto ? pontosTexto.split('\n').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+  var pontosPadrao = pontosTexto ? pontosTexto.split('\n').map(function(linha){
+    var partes = linha.split(' - ');
+    if(partes.length >= 2){ return { nome: partes[0].trim(), uc: partes.slice(1).join(' - ').trim() }; }
+    return { nome: linha.trim(), uc: '' };
+  }).filter(function(p){ return p.nome; }) : [];
 
   var data = {
     id: existingId || uid(), nome: nome, uc: txt('m-uc'), profileId: profileId,
-    overridesFixos: overridesFixos, itensNomes: itensNomes,
+    overridesFixos: overridesFixos, pontosPadrao: pontosPadrao,
     chavePix: txt('m-pix'), banco: txt('m-banco'), beneficiario: txt('m-beneficiario'), condicaoPagamento: txt('m-condicao')
   };
   if(existingId){
