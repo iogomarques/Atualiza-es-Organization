@@ -767,7 +767,7 @@ function presetGD2ComFioBMultiplos(){
       consumoAlocadoTotal:'Consumo total alocado nos pontos (confere com a injeção solar)', fioBAlocadoTotal:'Fio B total alocado nos pontos (confere com o Fio B da conta)',
       liquidoTotal:'Total líquido (todos os pontos)', valorComSolar:'Valor com solar (líquido de Fio B)'
     },
-    formatosCampos: { descontoReal:'percentual' },
+    formatosCampos: { descontoReal:'percentual', autoConsumo:'kwh', consumoAlocadoTotal:'kwh' },
     textoIntroducao: 'Segue o resumo da injeção solar do mês de {referencia}, separado por ponto de consumo. Os valores já estão descontados do Fio B de cada ponto.'
   };
 }
@@ -1163,7 +1163,10 @@ function aplicarDistribuicaoAutomatica(profile, itens, valoresEntrada){
   var taxaFioBPorKwh = energiaAtiva > 0 ? (fioBConta / energiaAtiva) : 0;
 
   var restante = injecaoSolar - consumoPrincipal;
-  if(restante < 0) restante = 0;
+  if(restante < 0){
+    restante = 0;
+    toast('Atenção: o consumo calculado do ponto principal (' + fmtNum(consumoPrincipal) + ' kWh) ficou MAIOR que a injeção solar total (' + fmtNum(injecaoSolar) + ' kWh) — isso não é possível. Confira se "Energia ativa" e "Injeção que aparece na conta" não foram trocados de lugar (é o erro mais comum aqui). Os outros pontos ficaram zerados até isso ser corrigido.');
+  }
   var indicesSecundarios = itens.map(function(it,i){ return i; }).filter(function(i){ return i !== iPrincipal; });
   var fatia = indicesSecundarios.length ? (restante / indicesSecundarios.length) : 0;
 
@@ -1190,7 +1193,7 @@ function refletirValoresCalculadosNoFormulario(profile, itens){
   var chaveFioB = profile.chaveItemFioB;
   var rows = document.querySelectorAll('#pontos-container .ponto-row');
   rows.forEach(function(row, i){
-    var item = itens[i]; if(!item || item.pontoPrincipal) return;
+    var item = itens[i]; if(!item) return;
     var consumoInp = row.querySelector('.item-val[data-chave="'+chaveConsumo+'"]');
     if(consumoInp) consumoInp.value = fmtNum(item[chaveConsumo]);
     if(chaveFioB){
