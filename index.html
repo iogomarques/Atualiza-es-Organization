@@ -137,11 +137,6 @@
   .pill.single{ background:var(--accent-soft); color:var(--accent-ink); }
   .pill.multi{ background:var(--savings-soft); color:var(--savings); }
 
-  .letter-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-s); box-shadow: var(--shadow-lift); padding: 26px 28px; margin-bottom: 14px; }
-  .letter-card h2{ font-family: var(--serif); font-size:15px; margin:0 0 14px; color: var(--ink-soft); font-weight:400; }
-  #letter-text{ width:100%; border:none; background:transparent; resize:vertical; font-family: var(--serif); font-size: 15px; line-height:1.65; min-height: 220px; padding:0; white-space:pre-wrap; }
-  #letter-text:focus{ outline:none; }
-
   .checklist{ display:flex; flex-direction:column; gap:6px; }
   .checklist label{ display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:400; }
   .checklist input{ margin:0; }
@@ -213,12 +208,6 @@
     .quote-grid{ flex-direction:column; }
     .quote-preview-col{ position:static; width:100%; }
     .var-row, .var-header{ grid-template-columns: 1fr; }
-  }
-
-  @media print{
-    body *{ visibility:hidden; }
-    #letter-card, #letter-card *{ visibility:visible; }
-    #letter-card{ position:absolute; top:0; left:0; width:100%; box-shadow:none; border:none; }
   }
 </style>
 </head>
@@ -694,13 +683,6 @@ function presetGD1(){
     textoIntroducao: 'O preço da geração foi calculado com base no consumo não compensado e na bandeira tarifária vigente. Segue o resumo da fatura de {referencia}:'
   };
 }
-function presetGD2SemFioB(){
-  var p = presetGD1();
-  p.id = uid();
-  p.nome = 'GD2 sem Fio B';
-  p.descricao = 'Modelo para usinas no ciclo GD2 sem cobrança de Fio B. Estrutura idêntica ao GD1 — use como ponto de partida e personalize se precisar.';
-  return p;
-}
 function presetGD2ComFioBUnico(){
   var p = presetGD1();
   p.id = uid();
@@ -778,7 +760,7 @@ function presetGD2ComFioBMultiplos(){
     textoIntroducao: 'Segue o resumo da injeção solar do mês de {referencia}, separado por ponto de consumo. Os valores já estão descontados do Fio B de cada ponto.'
   };
 }
-function presetsPadrao(){ return [ presetGD1(), presetGD2SemFioB(), presetGD2ComFioBUnico(), presetGD2ComFioBMultiplos() ]; }
+function presetsPadrao(){ return [ presetGD1(), presetGD2ComFioBUnico(), presetGD2ComFioBMultiplos() ]; }
 
 function seedClients(profiles){
   /* No máximo UM cliente de exemplo, sempre fictício — nunca dados reais de clientes. */
@@ -788,7 +770,7 @@ function seedClients(profiles){
       overridesFixos: { precoBase: gd1.variaveis.find(function(v){return v.chave==='precoBase';}).valorPadrao,
                         taxaBandeira: gd1.variaveis.find(function(v){return v.chave==='taxaBandeira';}).valorPadrao,
                         desconto: 0.10 },
-      itensNomes: [], chavePix:'', banco:'', beneficiario:'', condicaoPagamento:'' }
+      itensNomes: [], chavePix:'', banco:'', beneficiario:'', condicaoPagamento:'', locadorPagaFatura:false }
   ];
 }
 
@@ -1223,6 +1205,16 @@ function onCalcular(){
     return;
   }
 
+  /* "Quem paga a fatura" é uma configuração do CLIENTE, não do perfil — o Fio B é
+     sempre parte da fatura da concessionária, o que muda é só quem a paga. Se for a
+     locadora, o valor da fatura é repassado ao cliente sem margem (é dinheiro que só
+     passa, pra pagar a conta), e some destacado no documento do cliente. */
+  var repasseFatura = 0;
+  if(c.locadorPagaFatura && resultado.scope.valorFaturaInfo !== undefined){
+    repasseFatura = resultado.scope.valorFaturaInfo || 0;
+    resultado.scope[profile.chaveTotalFinal] = (resultado.scope[profile.chaveTotalFinal] || 0) + repasseFatura;
+  }
+
   var camposVisiveis = profile.camposVisiveisCliente ? profile.camposVisiveisCliente.slice() : [];
 
   state.lastDraft = {
@@ -1231,28 +1223,27 @@ function onCalcular(){
     itens: itensInputRaw,
     camposVisiveisEscolhidos: camposVisiveis,
     scope: resultado.scope, itensResultado: resultado.itensResultado, chaveItemValor: resultado.chaveItemValor,
-    letter: ''
+    repasseFatura: repasseFatura
   };
-  state.lastDraft.letter = buildLetter(c, profile, state.lastDraft);
   renderPreview();
 }
 
 /* ============================================================
-   CARTA (TEXTO PARA O CLIENTE) — GERADA A PARTIR DO PERFIL
+   HTML DO DOCUMENTO DO CLIENTE — usado para gerar Word e PNG
+   (o PDF do cliente é desenhado à parte, direto em jsPDF, mais abaixo)
    ============================================================ */
-function buildLetter(client, profile, draft){
+function construirHtmlFatura(client, profile, draft, dc){
   var scope = draft.scope;
-  var linhas = [];
-  linhas.push('USINA ' + client.nome.toUpperCase() + (client.uc ? ' — UC ' + client.uc : ''));
-  linhas.push('');
-  var intro = (profile.textoIntroducao || '').replace('{referencia}', draft.referencia);
-  if(intro) { linhas.push(intro); linhas.push(''); }
+  var rgbArr = hexToRgb(dc.corPrimaria);
+  var cor = 'rgb(' + rgbArr[0] + ',' + rgbArr[1] + ',' + rgbArr[2] + ')';
+  var linhaTd1 = 'padding:7px 0;color:#5c6f63;font-size:13px;';
+  var linhaTd2 = 'padding:7px 0;text-align:right;font-weight:bold;color:#16241d;font-size:13px;';
+  var linhaSep = '<tr><td colspan="2" style="border-bottom:1px solid #e0e4e0;font-size:1px;line-height:1px;">&nbsp;</td></tr>';
 
-  var camposDisp = camposDisponiveisPerfil(profile);
-  camposDisp.forEach(function(campo){
+  var linhasHtml = '';
+  camposDisponiveisPerfil(profile).forEach(function(campo){
     if(draft.camposVisiveisEscolhidos.indexOf(campo.chave) === -1) return;
-    var val = scope[campo.chave];
-    linhas.push('• ' + campo.rotulo + ': ' + formatarValor(val, campo.formato));
+    linhasHtml += '<tr><td style="'+linhaTd1+'">' + escapeHtml(campo.rotulo) + '</td><td style="'+linhaTd2+'">' + escapeHtml(formatarValor(scope[campo.chave], campo.formato)) + '</td></tr>' + linhaSep;
   });
 
   if(profile.possuiItensMultiplos && draft.itensResultado){
@@ -1260,80 +1251,59 @@ function buildLetter(client, profile, draft){
     var prefixoFioB = profile.rotuloItemFioBPrefixo || 'Fio B em ';
     draft.itensResultado.forEach(function(item){
       var nomeComUc = item.nome + (item.uc ? ' (UC ' + item.uc + ')' : '');
-      linhas.push('• ' + prefixo + nomeComUc + ': ' + fmtBRL(item[draft.chaveItemValor]));
+      linhasHtml += '<tr><td style="'+linhaTd1+'">' + escapeHtml(prefixo + nomeComUc) + '</td><td style="'+linhaTd2+'">' + escapeHtml(fmtBRL(item[draft.chaveItemValor])) + '</td></tr>' + linhaSep;
       if(profile.chaveItemFioB && item[profile.chaveItemFioB] !== undefined){
-        linhas.push('• ' + prefixoFioB + item.nome + ': ' + fmtBRL(item[profile.chaveItemFioB]));
+        linhasHtml += '<tr><td style="'+linhaTd1+'">' + escapeHtml(prefixoFioB + item.nome) + '</td><td style="'+linhaTd2+'">' + escapeHtml(fmtBRL(item[profile.chaveItemFioB])) + '</td></tr>' + linhaSep;
       }
     });
   }
 
-  if(Math.abs(draft.ajuste) > 0.004){ linhas.push('• Ajuste do mês: ' + fmtBRL(draft.ajuste)); }
+  if(Math.abs(draft.ajuste) > 0.004){
+    linhasHtml += '<tr><td style="'+linhaTd1+'">Ajuste do mês</td><td style="'+linhaTd2+'">' + escapeHtml(fmtBRL(draft.ajuste)) + '</td></tr>' + linhaSep;
+  }
+  if(draft.repasseFatura > 0.004){
+    linhasHtml += '<tr><td style="'+linhaTd1+'">Repasse da fatura de energia</td><td style="'+linhaTd2+'">' + escapeHtml(fmtBRL(draft.repasseFatura)) + '</td></tr>' + linhaSep;
+  }
 
-  linhas.push('');
-  if(draft.observacoes){ linhas.push(draft.observacoes); linhas.push(''); }
+  var intro = (profile.textoIntroducao || '').replace('{referencia}', draft.referencia);
+  var introHtml = intro ? '<p style="color:#5c6f63;font-size:12.5px;margin:0 0 16px 0;">' + escapeHtml(intro) + '</p>' : '';
+  var obsHtml = draft.observacoes ? '<p style="font-style:italic;color:#5c6f63;font-size:12.5px;margin:16px 0 0 0;">' + escapeHtml(draft.observacoes).split('\n').join('<br>') + '</p>' : '';
+  var logoHtml = dc.logoBase64 ? '<img src="' + dc.logoBase64 + '" style="height:56px;width:auto;display:block;margin-bottom:10px;">' : '';
+  var enderecoHtml = dc.enderecoContato ? '<div style="color:#5a665e;font-size:11.5px;">' + escapeHtml(dc.enderecoContato) + '</div>' : '';
+  var totalLabel = profile.rotuloTotalCliente || 'VALOR FINAL A SER PAGO';
+  var totalVal = fmtBRL(scope[profile.chaveTotalFinal]);
+  var rodapeHtml = dc.textoRodape ? '<div style="margin-top:22px;color:#96a298;font-size:10px;">' + escapeHtml(dc.textoRodape) + '</div>' : '';
 
-  var totalVal = scope[profile.chaveTotalFinal];
-  linhas.push((profile.rotuloTotalCliente || 'VALOR FINAL A SER PAGO') + ': ' + fmtBRL(totalVal));
-  linhas.push('');
-  linhas.push('Chave Pix: ' + (client.chavePix || '—') + (client.banco ? ' (' + client.banco + ')' : ''));
-  linhas.push(client.beneficiario || '');
-  return linhas.join('\n');
+  return '<div style="font-family:Helvetica,Arial,sans-serif;max-width:640px;color:#16241d;">' +
+    logoHtml +
+    '<div style="font-size:22px;font-weight:bold;color:'+cor+';">' + escapeHtml(dc.nomeEmpresa || 'Solar Organization') + '</div>' +
+    enderecoHtml +
+    '<div style="height:3px;background:'+cor+';margin:16px 0 20px 0;"></div>' +
+    '<div style="font-size:15px;font-weight:bold;">USINA ' + escapeHtml((client.nome||'').toUpperCase()) + (client.uc ? ' — UC ' + escapeHtml(client.uc) : '') + '</div>' +
+    '<div style="font-size:11.5px;color:#5c6f63;margin-bottom:14px;">Referência: ' + escapeHtml(draft.referencia) + '</div>' +
+    introHtml +
+    '<table style="width:100%;border-collapse:collapse;">' + linhasHtml + '</table>' +
+    obsHtml +
+    '<table style="width:100%;border-collapse:collapse;margin-top:18px;"><tr style="background:'+cor+';"><td style="padding:14px 18px;color:#fff;font-weight:bold;font-size:12.5px;border-radius:6px 0 0 6px;">' + escapeHtml(totalLabel) + '</td><td style="padding:14px 18px;text-align:right;color:#fff;font-weight:bold;font-size:17px;border-radius:0 6px 6px 0;">' + totalVal + '</td></tr></table>' +
+    '<table style="width:100%;border-collapse:collapse;margin-top:14px;border:1.5px solid '+cor+';border-radius:6px;"><tr>' +
+      '<td style="padding:14px 18px;"><div style="color:'+cor+';font-weight:bold;font-size:10.5px;">PAGAMENTO — CHAVE PIX</div><div style="font-weight:bold;font-size:15px;margin-top:4px;">' + escapeHtml(client.chavePix || '—') + '</div></td>' +
+      '<td style="padding:14px 18px;text-align:right;color:#5c6f63;font-size:10.5px;">' + escapeHtml(client.banco||'') + (client.banco&&client.beneficiario?'<br>':'') + escapeHtml(client.beneficiario||'') + '</td>' +
+    '</tr></table>' +
+    rodapeHtml +
+  '</div>';
 }
 
 /* ============================================================
-   PREVIEW: DASHBOARD DO GESTOR + DOCUMENTO DO CLIENTE
+   PREVIEW: DOCUMENTO DO CLIENTE (o gestor confere pelo PDF interno)
    ============================================================ */
-function row(label, value, highlight){
-  return '<div class="breakdown-row' + (highlight ? ' savings' : '') + '"><span class="lbl">' + escapeHtml(label) + '</span><span class="val tabular">' + value + '</span></div>';
-}
-function rowTotal(label, value){
-  return '<div class="breakdown-row total"><span class="lbl">' + escapeHtml(label) + '</span><span class="val tabular">' + value + '</span></div>';
-}
-
 function renderPreview(){
   var col = document.getElementById('preview-col');
   if(!col || !state.lastDraft) return;
   var d = state.lastDraft;
   var profile = getProfile(d.profileId);
-  var scope = d.scope;
 
-  /* ---- Dashboard do Gestor (tudo, confidencial) ---- */
-  var dashHtml = '<div class="panel"><h2>Dashboard do gestor (uso interno)</h2>';
-  (profile.variaveis||[]).forEach(function(v){
-    dashHtml += row(v.rotulo, formatarValor(scope[v.chave], v.formato));
-  });
-  if(!profile.possuiItensMultiplos){
-    linhasExecutaveis(profile.formulas).forEach(function(line){
-      var k = parseAssignKey(line); if(!k || k === profile.chaveTotalFinal) return;
-      dashHtml += row(rotuloCampo(profile,k), formatarValor(scope[k], formatoCampo(profile,k)), k.toLowerCase().indexOf('desconto')>-1);
-    });
-  } else {
-    linhasExecutaveis(profile.formulasCompartilhadas).forEach(function(line){
-      var k = parseAssignKey(line); if(!k) return;
-      dashHtml += row(rotuloCampo(profile,k), formatarValor(scope[k], formatoCampo(profile,k)));
-    });
-    (d.itensResultado||[]).forEach(function(item){
-      var nomeExibicao = item.nome + (item.uc ? ' — UC ' + item.uc : '');
-      dashHtml += '<div class="ponto-breakdown"><div class="nome">' + escapeHtml(nomeExibicao) + '</div>';
-      (profile.itemVariaveis||[]).forEach(function(v){ dashHtml += row(v.rotulo, formatarValor(item[v.chave], v.formato)); });
-      linhasExecutaveis(profile.itemFormulas).forEach(function(line){
-        var k = parseAssignKey(line);
-        if(!k || k === d.chaveItemValor) return;
-        dashHtml += row(rotuloCampo(profile,k), formatarValor(item[k], formatoCampo(profile,k)));
-      });
-      dashHtml += row('Valor do item (' + d.chaveItemValor + ')', fmtBRL(item[d.chaveItemValor]), true);
-      dashHtml += '</div>';
-    });
-    linhasExecutaveis(profile.formulasFinais).forEach(function(line){
-      var k = parseAssignKey(line); if(!k || k === profile.chaveTotalFinal) return;
-      dashHtml += row(rotuloCampo(profile,k), formatarValor(scope[k], formatoCampo(profile,k)), k.toLowerCase().indexOf('desconto')>-1 || k==='liquidoTotal');
-    });
-  }
-  if(Math.abs(d.ajuste) > 0.004) dashHtml += row('Ajuste do mês', fmtBRL(d.ajuste));
-  dashHtml += rowTotal(profile.rotuloTotalCliente || 'Total final', fmtBRL(scope[profile.chaveTotalFinal]));
-  dashHtml += '</div>';
-
-  /* ---- Checklist de campos visíveis no documento do cliente ---- */
+  /* O gestor confere os números pelo "Baixar PDF interno" — a tela fica só com o
+     essencial: o que vai aparecer pro cliente, e os botões pra gerar os arquivos. */
   var camposDisp = camposDisponiveisPerfil(profile);
   var checklistHtml = '<div class="panel"><h2>Campos visíveis no documento do cliente</h2><div class="checklist">' +
     camposDisp.map(function(campo){
@@ -1344,37 +1314,33 @@ function renderPreview(){
     (profile.possuiItensMultiplos ? 'Os pontos de consumo e o total sempre aparecem no documento; aqui você escolhe quais campos extras também aparecem.' : 'O valor final sempre aparece no documento; aqui você escolhe quais campos extras também aparecem.') +
     '</span></div>';
 
-  var letterHtml =
-    '<div class="letter-card" id="letter-card">' +
-      '<h2>Texto para enviar ao cliente</h2>' +
-      '<textarea id="letter-text" spellcheck="false">' + escapeHtml(d.letter) + '</textarea>' +
-    '</div>' +
+  var totalHtml = '<div class="panel"><div class="breakdown-row total"><span class="lbl">' +
+    escapeHtml(profile.rotuloTotalCliente || 'Total final') + '</span><span class="val tabular">' +
+    fmtBRL(d.scope[profile.chaveTotalFinal]) + '</span></div></div>';
+
+  var botoesHtml =
     '<div class="btn-row">' +
       '<button class="btn btn-primary" data-action="salvar-historico">Salvar no histórico</button>' +
-      '<button class="btn" data-action="copiar-carta">Copiar texto</button>' +
-      '<button class="btn" data-action="baixar-pdf">Baixar PDF (cliente)</button>' +
+    '</div>' +
+    '<h3 style="margin:16px 0 6px;font-size:13px;color:var(--ink-soft)">Documento do cliente</h3>' +
+    '<div class="btn-row">' +
+      '<button class="btn" data-action="baixar-png">Baixar PNG</button>' +
+      '<button class="btn" data-action="baixar-pdf">Baixar PDF</button>' +
+      '<button class="btn" data-action="baixar-doc">Baixar Word</button>' +
+    '</div>' +
+    '<h3 style="margin:16px 0 6px;font-size:13px;color:var(--ink-soft)">Uso interno</h3>' +
+    '<div class="btn-row">' +
       '<button class="btn" data-action="baixar-pdf-interno">Baixar PDF interno</button>' +
-      '<button class="btn" data-action="baixar-doc">Baixar Word (.doc)</button>' +
-      '<button class="btn" data-action="baixar-txt">Baixar .txt</button>' +
-      '<button class="btn" data-action="imprimir">Imprimir</button>' +
     '</div>';
 
-  col.innerHTML = letterHtml + checklistHtml + dashHtml;
+  col.innerHTML = totalHtml + checklistHtml + botoesHtml;
 
-  var letterEl = document.getElementById('letter-text');
-  if(letterEl){
-    letterEl.addEventListener('input', function(){ state.lastDraft.letter = letterEl.value; });
-  }
   document.querySelectorAll('.campo-visivel-toggle').forEach(function(cb){
     cb.addEventListener('change', function(){
       var chave = cb.dataset.chave;
       var idx = state.lastDraft.camposVisiveisEscolhidos.indexOf(chave);
       if(cb.checked && idx === -1) state.lastDraft.camposVisiveisEscolhidos.push(chave);
       if(!cb.checked && idx > -1) state.lastDraft.camposVisiveisEscolhidos.splice(idx,1);
-      var client = selectedClient();
-      state.lastDraft.letter = buildLetter(client, profile, state.lastDraft);
-      var le = document.getElementById('letter-text');
-      if(le) le.value = state.lastDraft.letter;
     });
   });
 }
@@ -1438,24 +1404,63 @@ async function deleteQuote(id){
 }
 
 /* ============================================================
-   DOWNLOAD / CÓPIA / PDF
+   DOWNLOAD — PNG / PDF / WORD (cliente) e PDF (interno)
    ============================================================ */
-async function baixarTxt(texto, nomeArquivo){
-  var blob = new Blob([texto], { type:'text/plain;charset=utf-8' });
-  await compartilharOuBaixarBlob(blob, nomeArquivo + '.txt', 'text/plain');
-}
-function textoParaHtmlParagrafos(texto){
-  return texto.split('\n\n').map(function(par){ return '<p style="margin:0 0 12pt 0;">' + escapeHtml(par).split('\n').join('<br>') + '</p>'; }).join('\n');
-}
-async function baixarDoc(texto, nomeArquivo){
+async function baixarDoc(){
+  var d = state.lastDraft;
+  if(!d){ toast('Calcule um orçamento antes de baixar o Word.'); return; }
+  var client = state.clients.find(function(c){ return c.id === d.clientId; });
+  var profile = getProfile(d.profileId);
+  if(!client || !profile) return;
+  var dc = state.docConfig || docConfigPadrao();
+  var corpo = construirHtmlFatura(client, profile, d, dc);
   var html = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>" +
-    "<head><meta charset='utf-8'><title>Orçamento</title></head><body style=\"font-family:Georgia,serif; font-size:12pt;\">" + textoParaHtmlParagrafos(texto) + "</body></html>";
+    "<head><meta charset='utf-8'><title>Fatura</title></head><body>" + corpo + "</body></html>";
   var blob = new Blob(['\ufeff', html], { type:'application/msword' });
-  await compartilharOuBaixarBlob(blob, nomeArquivo + '.doc', 'application/msword');
+  var nomeArquivo = nomeArquivoDocumento(client, d.referencia, 'FATURA') + '.doc';
+  await compartilharOuBaixarBlob(blob, nomeArquivo, 'application/msword');
 }
-async function copiarTexto(texto){
-  try{ await navigator.clipboard.writeText(texto); toast('Texto copiado para a área de transferência.'); }
-  catch(e){ toast('Não deu para copiar automaticamente — selecione o texto e use Ctrl+C.'); }
+var _html2canvasLoading = null;
+function carregarHtml2Canvas(){
+  if(window.html2canvas) return Promise.resolve(true);
+  if(_html2canvasLoading) return _html2canvasLoading;
+  _html2canvasLoading = new Promise(function(resolve){
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = function(){ resolve(!!window.html2canvas); };
+    s.onerror = function(){ resolve(false); };
+    document.head.appendChild(s);
+    setTimeout(function(){ resolve(!!window.html2canvas); }, 4000);
+  });
+  return _html2canvasLoading;
+}
+async function baixarPng(){
+  var d = state.lastDraft;
+  if(!d){ toast('Calcule um orçamento antes de baixar a imagem.'); return; }
+  var ok = await carregarHtml2Canvas();
+  if(!ok || !window.html2canvas){ toast('Não deu para carregar o gerador de imagem agora. Tente de novo em instantes.'); return; }
+  var client = state.clients.find(function(c){ return c.id === d.clientId; });
+  var profile = getProfile(d.profileId);
+  if(!client || !profile) return;
+  var dc = state.docConfig || docConfigPadrao();
+
+  var container = document.createElement('div');
+  container.style.position = 'fixed'; container.style.left = '-99999px'; container.style.top = '0';
+  container.style.width = '640px'; container.style.background = '#ffffff'; container.style.padding = '32px';
+  container.innerHTML = construirHtmlFatura(client, profile, d, dc);
+  document.body.appendChild(container);
+  try{
+    var canvas = await window.html2canvas(container, { backgroundColor:'#ffffff', scale:2 });
+    var blob = await new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
+    if(!blob){ toast('Não deu para gerar a imagem.'); return; }
+    var nomeArquivo = nomeArquivoDocumento(client, d.referencia, 'FATURA') + '.png';
+    await compartilharOuBaixarBlob(blob, nomeArquivo, 'image/png');
+  }catch(e){
+    console.error(e);
+    toast('Erro ao gerar a imagem.');
+  }finally{
+    document.body.removeChild(container);
+  }
 }
 var _jspdfLoading = null;
 function carregarJsPdf(){
@@ -1770,6 +1775,15 @@ async function baixarPdf(modo){
         y += 22;
       } else {
         y += 8;
+      }
+
+      if(d.repasseFatura > 0.004){
+        checkBreak(20);
+        doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
+        doc.text('Repasse da fatura de energia', marginX, y);
+        doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
+        doc.text(fmtBRL(d.repasseFatura), pageW - marginX, y, { align:'right' });
+        y += 22;
       }
 
       if(d.observacoes){
@@ -2363,6 +2377,8 @@ function openClientModal(id){
         '</div>' +
         '<div class="field"><label>Nome do beneficiário (para o Pix)</label><input type="text" id="m-beneficiario" value="' + (editing?escapeHtml(editing.beneficiario):'') + '"></div>' +
         '<div class="field"><label>Condição de pagamento (opcional, uso interno)</label><input type="text" id="m-condicao" value="' + (editing?escapeHtml(editing.condicaoPagamento):'') + '" placeholder="Ex.: Débito automático"></div>' +
+        '<label class="checkbox-field" style="margin:4px 0 4px"><input type="checkbox" id="m-paga-fatura"' + (editing&&editing.locadorPagaFatura?' checked':'') + '> Eu pago a fatura da concessionária deste cliente</label>' +
+        '<p class="hint" style="margin:0 0 12px">Quando marcado, o valor da fatura (campo "Valor da fatura" do mês) é somado ao total cobrado do cliente, sem margem — é só repasse, porque essa é a parte que eu uso pra pagar a conta. Desmarcado (padrão): o cliente paga a fatura direto pra concessionária, e eu só cobro a locação da usina.</p>' +
         '<div class="btn-row" style="justify-content:space-between;margin-top:8px">' +
           (editing ? '<button class="btn btn-danger" data-action="delete-client-confirm" data-id="' + editing.id + '">Excluir cliente</button>' : '<span></span>') +
           '<button class="btn btn-primary" data-action="save-client" data-id="' + (editing?editing.id:'') + '">Salvar</button>' +
@@ -2394,7 +2410,8 @@ async function saveClientFromModal(existingId){
   var data = {
     id: existingId || uid(), nome: nome, uc: txt('m-uc'), profileId: profileId,
     overridesFixos: overridesFixos, pontosPadrao: pontosPadrao,
-    chavePix: txt('m-pix'), banco: txt('m-banco'), beneficiario: txt('m-beneficiario'), condicaoPagamento: txt('m-condicao')
+    chavePix: txt('m-pix'), banco: txt('m-banco'), beneficiario: txt('m-beneficiario'), condicaoPagamento: txt('m-condicao'),
+    locadorPagaFatura: !!(document.getElementById('m-paga-fatura') && document.getElementById('m-paga-fatura').checked)
   };
   if(existingId){
     var idx = state.clients.findIndex(function(c){ return c.id === existingId; });
@@ -2579,12 +2596,10 @@ document.addEventListener('click', function(e){
     case 'remove-ponto': removePontoRow(id); break;
     case 'calcular': onCalcular(); break;
     case 'salvar-historico': onSalvarHistorico(); break;
-    case 'copiar-carta': copiarTexto(state.lastDraft ? state.lastDraft.letter : ''); break;
-    case 'baixar-txt': (function(){ var dr=state.lastDraft; if(!dr){toast('Calcule um orçamento antes de baixar.'); return;} var cl=state.clients.find(function(c){return c.id===dr.clientId;}); baixarTxt(dr.letter, nomeArquivoDocumento(cl||{nome:''}, dr.referencia, 'FATURA')); })(); break;
-    case 'baixar-doc': (function(){ var dr=state.lastDraft; if(!dr){toast('Calcule um orçamento antes de baixar.'); return;} var cl=state.clients.find(function(c){return c.id===dr.clientId;}); baixarDoc(dr.letter, nomeArquivoDocumento(cl||{nome:''}, dr.referencia, 'FATURA')); })(); break;
+    case 'baixar-doc': baixarDoc(); break;
+    case 'baixar-png': baixarPng(); break;
     case 'baixar-pdf': baixarPdf('cliente'); break;
     case 'baixar-pdf-interno': baixarPdf('interno'); break;
-    case 'imprimir': window.print(); break;
 
     case 'duplicar-quote': duplicarQuote(id); break;
     case 'delete-quote-confirm': handleConfirmClick(el, function(){ deleteQuote(id); }); break;
