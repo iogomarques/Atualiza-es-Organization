@@ -47,6 +47,9 @@
   .brand-text{ display:flex; flex-direction:column; line-height:1.2; }
   .brand-text b{ font-family: var(--serif); font-size: 17px; font-weight:700; }
   .brand-text span{ font-size:11.5px; color: var(--ink-soft); }
+  .settings-btn{ flex-shrink:0; width:32px; height:32px; border-radius:50%; border:1px solid var(--line); background:var(--surface); color:var(--ink-soft); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background .15s,color .15s,border-color .15s; }
+  .settings-btn:hover{ background: var(--panel-soft, #f3f4f2); color: var(--ink); }
+  .settings-btn.active{ background: var(--accent); border-color: var(--accent); color:#fff; }
   .side-label{ font-size:11.5px; color: var(--ink-soft); padding: 0 6px 6px; }
   .client-list{ display:flex; flex-direction:column; gap:3px; overflow-y:auto; flex:1; }
   .client-row{ display:flex; align-items:center; gap:9px; padding: 9px 8px; border-radius: var(--radius-s); cursor:pointer; border: 1px solid transparent; transition: background .15s var(--ease), border-color .15s var(--ease), transform .15s var(--ease); }
@@ -642,7 +645,6 @@ function presetGD1(){
       {chave:'saldoDelta', rotulo:'Saldo — variação do mês (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'injecaoNaConta', rotulo:'Injeção que aparece na conta (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'energiaAtiva', rotulo:'Energia ativa (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
-      {chave:'fioB', rotulo:'Fio B (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'adicionalBandeira', rotulo:'Adicional de bandeira (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'gastoNaoCompensado', rotulo:'Gasto não compensado (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'iluminacao', rotulo:'Iluminação pública (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
@@ -657,11 +659,11 @@ function presetGD1(){
       'consumoEfetivo = consumoTotal - saldoDelta',
       'contaEnergiaRS = precoSemDesconto * consumoEfetivo',
       'injecaoSemDescontoRS = precoSemDesconto * injecaoEfetiva',
-      'injecaoComDescontoRS = precoComDesconto * injecaoEfetiva - fioB',
+      'injecaoComDescontoRS = precoComDesconto * injecaoEfetiva',
       'multasEAdicionais = multas + adicionais',
       'somaComponentes = adicionalBandeira + gastoNaoCompensado + iluminacao + adicionais + multas',
       'valorSemSolar = valorFaturaImpresso + contaEnergiaRS',
-      'valorComSolar = injecaoComDescontoRS + valorFaturaImpresso',
+      'valorComSolar = injecaoComDescontoRS',
       'descontoRS = injecaoSemDescontoRS - injecaoComDescontoRS',
       'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)',
       'valorFinal = valorComSolar - ajuste',
@@ -674,7 +676,7 @@ function presetGD1(){
       precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
       injecaoEfetiva:'Injeção efetiva (já descontado o saldo)', consumoEfetivo:'Consumo efetivo (já descontado o saldo)',
       contaEnergiaRS:'Conta de energia (tarifa cheia)', injecaoSemDescontoRS:'Injeção em R$ sem desconto',
-      injecaoComDescontoRS:'Injeção em R$ com desconto (líquido de Fio B)', multasEAdicionais:'Multas e adicionais',
+      injecaoComDescontoRS:'Injeção em R$ com desconto', multasEAdicionais:'Multas e adicionais',
       somaComponentes:'Soma dos componentes da fatura', valorSemSolar:'Valor sem solar',
       valorComSolar:'Valor com solar (antes do ajuste)', descontoRS:'Desconto concedido em R$',
       descontoReal:'Desconto real', lucroFinal:'Receita da usina (lucro)'
@@ -687,7 +689,16 @@ function presetGD2ComFioBUnico(){
   var p = presetGD1();
   p.id = uid();
   p.nome = 'GD2 com Fio B (ponto único)';
-  p.descricao = 'Um único ponto de consumo, com dedução do Fio B (rateado pela energia ativa) sobre o valor da energia injetada.';
+  p.descricao = 'Um único ponto de consumo, com dedução do Fio B sobre o valor da energia injetada — a dedução só se aplica quando o cliente paga a fatura da concessionária direto; se for a locadora quem paga, o Fio B não é descontado do cliente (ver campo "Eu pago a fatura" no cadastro do cliente).';
+  p.variaveis = p.variaveis.slice();
+  p.variaveis.push({chave:'fioB', rotulo:'Fio B (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'});
+  p.formulas = p.formulas.map(function(line){
+    return line.indexOf('injecaoComDescontoRS =') === 0 ? 'injecaoComDescontoRS = precoComDesconto * injecaoEfetiva - fioB' : line;
+  });
+  p.rotulosCampos = Object.assign({}, p.rotulosCampos, {
+    injecaoComDescontoRS: 'Injeção em R$ com desconto (líquido de Fio B quando o cliente paga a fatura)',
+    fioB: 'Fio B'
+  });
   return p;
 }
 function presetGD2ComFioBMultiplos(){
@@ -852,7 +863,14 @@ function renderSidebar(){
       '</button></div>';
   }).join('');
   el.innerHTML =
-    '<div class="brand">' + sunIconSvg(58) + '<div class="brand-text"><span>' + escapeHtml(currentUser?currentUser.email:'') + '</span></div></div>' +
+    '<div class="brand" style="justify-content:space-between">' +
+      '<div style="display:flex;align-items:center;gap:9px;min-width:0">' + sunIconSvg(58) +
+        '<div class="brand-text"><span>' + escapeHtml(currentUser?currentUser.email:'') + '</span></div>' +
+      '</div>' +
+      '<button class="settings-btn' + (state.activeTab==='config'?' active':'') + '" data-action="set-tab" data-tab="config" title="Configurações" aria-label="Configurações">' +
+        '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>' +
+      '</button>' +
+    '</div>' +
     '<div class="side-label">Clientes</div>' +
     '<div class="client-list">' + rows + '</div>' +
     '<button class="btn-new-client" data-action="new-client">+ Novo cliente</button>';
@@ -875,7 +893,7 @@ function renderTopbar(){
 function renderTabs(){
   var el = document.getElementById('tabs');
   var hasClient = !!selectedClient();
-  var tabs = [ ['novo','Novo orçamento', !hasClient], ['historico','Histórico', !hasClient], ['perfis','Perfis de Faturamento', false], ['config','Configurações', false] ];
+  var tabs = [ ['novo','Novo orçamento', !hasClient], ['historico','Histórico', !hasClient], ['perfis','Perfis de Faturamento', false] ];
   el.innerHTML = tabs.map(function(t){
     var disabled = t[2] ? ' disabled' : '';
     var active = state.activeTab === t[0] ? ' active' : '';
@@ -1205,13 +1223,39 @@ function onCalcular(){
     return;
   }
 
-  /* "Quem paga a fatura" é uma configuração do CLIENTE, não do perfil — o Fio B é
-     sempre parte da fatura da concessionária, o que muda é só quem a paga. Se for a
-     locadora, o valor da fatura é repassado ao cliente sem margem (é dinheiro que só
-     passa, pra pagar a conta), e some destacado no documento do cliente. */
+  /* "Quem paga a fatura" é uma configuração do CLIENTE, não do perfil. O Fio B só existe
+     em perfis GD2 e a fórmula do perfil sempre o desconta do valor da locação por padrão
+     — isso está certo quando o CLIENTE paga a fatura direto pra concessionária (ele já
+     paga o Fio B por lá). Quando é a locadora que paga a fatura, é o oposto: é ela quem
+     arca com o Fio B, então ninguém desconta o Fio B do valor da locação (senão o
+     cliente pagaria o Fio B duas vezes — uma pelo desconto que não teve, outra pelo
+     repasse). Por isso, nesse caso, desfazemos o desconto de Fio B e o repasse da fatura
+     exclui a parte do Fio B (só repassamos "as partes de fora": iluminação, adicionais
+     etc. — o Fio B "fica" com a locadora, que é quem vai pagar a concessionária com ele). */
   var repasseFatura = 0;
-  if(c.locadorPagaFatura && resultado.scope.valorFaturaInfo !== undefined){
-    repasseFatura = resultado.scope.valorFaturaInfo || 0;
+  var ocultarFioBPorPonto = false;
+  var chaveFatura = (resultado.scope.valorFaturaInfo !== undefined) ? 'valorFaturaInfo'
+                   : (resultado.scope.valorFaturaImpresso !== undefined) ? 'valorFaturaImpresso' : null;
+  if(c.locadorPagaFatura && chaveFatura){
+    var valorFatura = resultado.scope[chaveFatura] || 0;
+    var fioBTotal = profile.possuiItensMultiplos ? (resultado.scope.fioBAlocadoTotal || 0) : (resultado.scope.fioB || 0);
+    if(fioBTotal > 0.004){
+      if(profile.possuiItensMultiplos && resultado.itensResultado && profile.chaveItemFioB){
+        resultado.itensResultado.forEach(function(item){
+          item[resultado.chaveItemValor] = (item[resultado.chaveItemValor]||0) + (item[profile.chaveItemFioB]||0);
+        });
+        resultado.scope.liquidoTotal = resultado.itensResultado.reduce(function(s,it){ return s + (it[resultado.chaveItemValor]||0); }, 0);
+        resultado.scope.valorComSolar = resultado.scope.liquidoTotal;
+        ocultarFioBPorPonto = true;
+      } else if(resultado.scope.injecaoComDescontoRS !== undefined){
+        resultado.scope.injecaoComDescontoRS += fioBTotal;
+        resultado.scope.valorComSolar = resultado.scope.injecaoComDescontoRS;
+      }
+      resultado.scope[profile.chaveTotalFinal] = resultado.scope.valorComSolar - ajuste;
+      repasseFatura = Math.max(0, valorFatura - fioBTotal);
+    } else {
+      repasseFatura = valorFatura;
+    }
     resultado.scope[profile.chaveTotalFinal] = (resultado.scope[profile.chaveTotalFinal] || 0) + repasseFatura;
   }
 
@@ -1222,6 +1266,7 @@ function onCalcular(){
     valoresEntrada: Object.assign({}, mensais), ajuste: ajuste, observacoes: observacoes,
     itens: itensInputRaw,
     camposVisiveisEscolhidos: camposVisiveis,
+    ocultarFioBPorPonto: ocultarFioBPorPonto,
     scope: resultado.scope, itensResultado: resultado.itensResultado, chaveItemValor: resultado.chaveItemValor,
     repasseFatura: repasseFatura
   };
@@ -1252,7 +1297,7 @@ function construirHtmlFatura(client, profile, draft, dc){
     draft.itensResultado.forEach(function(item){
       var nomeComUc = item.nome + (item.uc ? ' (UC ' + item.uc + ')' : '');
       linhasHtml += '<tr><td style="'+linhaTd1+'">' + escapeHtml(prefixo + nomeComUc) + '</td><td style="'+linhaTd2+'">' + escapeHtml(fmtBRL(item[draft.chaveItemValor])) + '</td></tr>' + linhaSep;
-      if(profile.chaveItemFioB && item[profile.chaveItemFioB] !== undefined){
+      if(!draft.ocultarFioBPorPonto && profile.chaveItemFioB && item[profile.chaveItemFioB] !== undefined){
         linhasHtml += '<tr><td style="'+linhaTd1+'">' + escapeHtml(prefixoFioB + item.nome) + '</td><td style="'+linhaTd2+'">' + escapeHtml(fmtBRL(item[profile.chaveItemFioB])) + '</td></tr>' + linhaSep;
       }
     });
@@ -1505,7 +1550,7 @@ function nomeArquivoDocumento(client, referencia, sufixo){
   var partes = (referencia || '').split('/');
   var nomeMes = partes[0] || '', ano = partes[1] || '';
   var idxMes = MESES_PT.indexOf(nomeMes);
-  var mesNum = idxMes > -1 ? String(idxMes + 1) : '0';
+  var mesNum = idxMes > -1 ? String(idxMes + 1).padStart(2, '0') : '00';
   var nomeCliente = (client.nome || '').toUpperCase();
   return (ano + ' ' + mesNum + ' ' + nomeCliente + ' ' + sufixo).trim();
 }
@@ -1753,7 +1798,7 @@ async function baixarPdf(modo){
           y += 8;
           linhaSeparadora(y);
           y += 14;
-          if(profile.chaveItemFioB && item[profile.chaveItemFioB] !== undefined){
+          if(!d.ocultarFioBPorPonto && profile.chaveItemFioB && item[profile.chaveItemFioB] !== undefined){
             checkBreak(20);
             doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
             doc.text(prefixoFioBC + item.nome, marginX, y);
@@ -2243,11 +2288,6 @@ function renderConfig(){
       '<div class="btn-row"><button class="btn btn-primary" data-action="salvar-doc-config">Salvar personalização</button></div>' +
     '</div>' +
     '<div class="panel" style="max-width:520px">' +
-      '<h2>Modelos padrão</h2>' +
-      '<p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px">Quando o GD1/GD2 padrão do site é corrigido ou melhorado, use este botão para atualizar os modelos que você ainda não personalizou. Clientes vinculados a um modelo padrão passam a usar a versão corrigida automaticamente. Modelos que você já duplicou e editou não são alterados.</p>' +
-      '<button class="btn btn-primary" data-action="atualizar-modelos-padrao">Atualizar modelos padrão (GD1 / GD2)</button>' +
-    '</div>' +
-    '<div class="panel" style="max-width:520px">' +
       '<h2>Dados</h2>' +
       '<button class="btn btn-danger" data-action="reset-all-confirm">Apagar todos os meus dados e restaurar modelos padrão</button>' +
     '</div>';
@@ -2289,7 +2329,8 @@ async function salvarDocConfig(){
    para não incomodar o usuário toda vez que abrir o app sem necessidade. */
 async function sincronizarModelosPadrao(mostrarToast){
   var novos = presetsPadrao();
-  var atualizados = 0, adicionados = 0;
+  var nomesAtuais = novos.map(function(np){ return np.nome; });
+  var atualizados = 0, adicionados = 0, removidos = 0, presosEmUso = [];
   novos.forEach(function(np){
     var existente = state.profiles.find(function(p){ return p.isPreset && p.nome === np.nome; });
     if(existente){
@@ -2306,19 +2347,32 @@ async function sincronizarModelosPadrao(mostrarToast){
       adicionados++;
     }
   });
-  if(atualizados > 0 || adicionados > 0){
+  /* Presets antigos que saíram da lista (ex.: um modelo descontinuado) são removidos
+     sozinhos, desde que nenhum cliente ainda esteja vinculado a eles — só apagamos o
+     que dá pra apagar com segurança, sem quebrar vínculo de cliente nenhum. */
+  state.profiles = state.profiles.filter(function(p){
+    if(!p.isPreset || nomesAtuais.indexOf(p.nome) > -1) return true;
+    var emUso = state.clients.some(function(c){ return c.profileId === p.id; });
+    if(emUso){ presosEmUso.push(p.nome); return true; }
+    removidos++;
+    return false;
+  });
+  if(atualizados > 0 || adicionados > 0 || removidos > 0){
     await saveProfiles();
     if(mostrarToast){
-      toast('Modelos padrão atualizados (' + atualizados + ' corrigidos, ' + adicionados + ' novos). Clientes e orçamentos não foram alterados.');
+      var partes = [];
+      if(atualizados) partes.push(atualizados + ' corrigido(s)');
+      if(adicionados) partes.push(adicionados + ' novo(s)');
+      if(removidos) partes.push(removidos + ' descontinuado(s) removido(s)');
+      toast('Modelos padrão atualizados (' + partes.join(', ') + '). Clientes e orçamentos não foram alterados.');
     }
   } else if(mostrarToast){
     toast('Os modelos padrão já estavam atualizados.');
   }
-  return { atualizados: atualizados, adicionados: adicionados };
-}
-async function atualizarModelosPadrao(){
-  await sincronizarModelosPadrao(true);
-  renderTabContent();
+  if(presosEmUso.length){
+    toast('Modelo(s) descontinuado(s) ainda em uso por algum cliente, então não foram removidos: ' + presosEmUso.join(', ') + '. Troque o perfil desse(s) cliente(s) em "Editar cliente" se quiser limpar.');
+  }
+  return { atualizados: atualizados, adicionados: adicionados, removidos: removidos };
 }
 async function resetAllData(){
   state.profiles = presetsPadrao();
