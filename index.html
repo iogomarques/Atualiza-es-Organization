@@ -1160,12 +1160,15 @@ function aplicarDistribuicaoAutomatica(profile, itens, valoresEntrada){
 
   var autoConsumo = consumoTotal - injecaoNaConta;
   var consumoPrincipal = energiaAtiva + autoConsumo;
-  var taxaFioBPorKwh = energiaAtiva > 0 ? (fioBConta / energiaAtiva) : 0;
 
+  /* O "que sobra" pros pontos secundários pode dar negativo (quando o consumo do
+     principal, naquele ciclo de fatura, é maior que a injeção total do mês — isso
+     acontece por causa da defasagem entre as datas de fechamento das duas contas).
+     Isso é normal e não é erro: continua entrando na conta como valor negativo,
+     reduzindo o total (a planilha mostra "-" na tela, mas o valor conta de verdade). */
   var restante = injecaoSolar - consumoPrincipal;
   if(restante < 0){
-    restante = 0;
-    toast('Atenção: o consumo calculado do ponto principal (' + fmtNum(consumoPrincipal) + ' kWh) ficou MAIOR que a injeção solar total (' + fmtNum(injecaoSolar) + ' kWh) — isso não é possível. Confira se "Energia ativa" e "Injeção que aparece na conta" não foram trocados de lugar (é o erro mais comum aqui). Os outros pontos ficaram zerados até isso ser corrigido.');
+    toast('O consumo do ponto principal (' + fmtNum(consumoPrincipal) + ' kWh) ficou maior que a injeção solar do mês (' + fmtNum(injecaoSolar) + ' kWh). Isso pode ser normal (defasagem de datas de fechamento) — os demais pontos ficam com valor negativo, reduzindo o total. Se não for esperado, confira "Energia ativa" e "Injeção que aparece na conta".');
   }
   var indicesSecundarios = itens.map(function(it,i){ return i; }).filter(function(i){ return i !== iPrincipal; });
   var fatia = indicesSecundarios.length ? (restante / indicesSecundarios.length) : 0;
@@ -1176,9 +1179,11 @@ function aplicarDistribuicaoAutomatica(profile, itens, valoresEntrada){
       it[chaveConsumo] = consumoPrincipal;
       it[chaveFioB] = fioBConta;
     } else {
+      /* Fio B nunca é cobrado dos pontos secundários — só o principal paga o Fio B
+         (é a conta dele que realmente tem essa cobrança da concessionária). */
       it.pontoPrincipal = 0;
       it[chaveConsumo] = fatia;
-      it[chaveFioB] = fatia * taxaFioBPorKwh;
+      it[chaveFioB] = 0;
     }
     return it;
   });
