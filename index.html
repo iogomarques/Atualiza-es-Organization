@@ -1536,11 +1536,19 @@ function carregarHtml2Canvas(){
 async function baixarPng(){
   var d = state.lastDraft;
   if(!d){ toast('Calcule um orçamento antes de baixar a imagem.'); return; }
+  var abaPreAberta = window.open('', '_blank');
+  if(abaPreAberta){
+    try{ abaPreAberta.document.write('<title>Gerando imagem…</title><body style="font-family:sans-serif;padding:40px;color:#667">Gerando a imagem, aguarde…</body>'); }catch(e){}
+  }
   var ok = await carregarHtml2Canvas();
-  if(!ok || !window.html2canvas){ toast('Não deu para carregar o gerador de imagem agora. Tente de novo em instantes.'); return; }
+  if(!ok || !window.html2canvas){
+    if(abaPreAberta) abaPreAberta.close();
+    toast('Não deu para carregar o gerador de imagem agora. Tente de novo em instantes.');
+    return;
+  }
   var client = state.clients.find(function(c){ return c.id === d.clientId; });
   var profile = getProfile(d.profileId);
-  if(!client || !profile) return;
+  if(!client || !profile){ if(abaPreAberta) abaPreAberta.close(); return; }
   var dc = state.docConfig || docConfigPadrao();
 
   var container = document.createElement('div');
@@ -1551,11 +1559,12 @@ async function baixarPng(){
   try{
     var canvas = await window.html2canvas(container, { backgroundColor:'#ffffff', scale:2 });
     var blob = await new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
-    if(!blob){ toast('Não deu para gerar a imagem.'); return; }
+    if(!blob){ if(abaPreAberta) abaPreAberta.close(); toast('Não deu para gerar a imagem.'); return; }
     var nomeArquivo = nomeArquivoDocumento(client, d.referencia, 'FATURA') + '.png';
-    await compartilharOuBaixarBlob(blob, nomeArquivo, 'image/png');
+    await compartilharOuBaixarBlob(blob, nomeArquivo, 'image/png', abaPreAberta);
   }catch(e){
     console.error(e);
+    if(abaPreAberta) abaPreAberta.close();
     toast('Erro ao gerar a imagem.');
   }finally{
     document.body.removeChild(container);
@@ -1580,21 +1589,33 @@ function carregarJsPdf(){
    em vez de baixar), tenta primeiro a Web Share API com arquivos — no
    celular isso abre a folha nativa de compartilhar/salvar, sem link nenhum
    aparecendo. Se não for suportado, cai no download tradicional. */
-async function compartilharOuBaixarBlob(blob, filename, mimeType){
-  var tentouCompartilhar = false;
-  try{
-    if(navigator.share && navigator.canShare){
-      var arquivo = new File([blob], filename, { type: mimeType });
-      if(navigator.canShare({ files: [arquivo] })){
-        tentouCompartilhar = true;
-        await navigator.share({ files: [arquivo] });
-        return;
-      }
-    }
-  }catch(e){
-    if(tentouCompartilhar) return; /* usuário cancelou a folha nativa — não faz nada além disso */
-  }
+async function compartilharOuBaixarBlob(blob, filename, mimeType, abaPreAberta){
+  var podeAbrirNoNavegador = mimeType === 'application/pdf' || mimeType.indexOf('image/') === 0;
   var url = URL.createObjectURL(blob);
+
+  if(podeAbrirNoNavegador){
+    /* Abre numa aba nova — o próprio visualizador do navegador (PDF ou imagem) já
+       tem um botão de baixar/salvar embutido, sem passar pelo painel nativo de
+       "Compartilhar" do Windows/macOS, que é estranho de usar no computador.
+       Usa a aba já reservada no clique (abaPreAberta) quando existir, pra não cair
+       no bloqueio de pop-up dos navegadores (que só permitem abrir aba nova bem na
+       hora do clique, não depois de esperar o arquivo ficar pronto). */
+    var aba = abaPreAberta || window.open(url, '_blank');
+    if(aba && !aba.closed){
+      if(abaPreAberta) aba.location.href = url;
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 5 * 60 * 1000);
+      return;
+    }
+    var a1 = document.createElement('a');
+    a1.href = url; a1.download = filename;
+    document.body.appendChild(a1); a1.click(); document.body.removeChild(a1);
+    toast('Seu navegador bloqueou a aba nova, então baixei o arquivo direto. Pode liberar pop-ups pra esse site se quiser abrir na aba da próxima vez.');
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 5 * 60 * 1000);
+    return;
+  }
+
+  /* Word (.doc) e outros formatos que o navegador não sabe exibir sozinho: baixa
+     direto, com o nome certo (uma aba nova não ajudaria em nada aqui). */
   var a = document.createElement('a');
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
@@ -1635,14 +1656,19 @@ async function baixarPdf(modo){
   modo = modo || 'cliente';
   var d = state.lastDraft;
   if(!d){ toast('Calcule um orçamento antes de baixar o PDF.'); return; }
+  var abaPreAberta = window.open('', '_blank');
+  if(abaPreAberta){
+    try{ abaPreAberta.document.write('<title>Gerando PDF…</title><body style="font-family:sans-serif;padding:40px;color:#667">Gerando o PDF, aguarde…</body>'); }catch(e){}
+  }
   var ok = await carregarJsPdf();
   if(!ok || !window.jspdf){
-    toast('Não deu para carregar o gerador de PDF agora. Use "Imprimir" e escolha "Salvar como PDF".');
+    if(abaPreAberta) abaPreAberta.close();
+    toast('Não deu para carregar o gerador de PDF agora. Tente de novo em instantes.');
     return;
   }
   var client = state.clients.find(function(c){ return c.id === d.clientId; });
   var profile = getProfile(d.profileId);
-  if(!client || !profile) return;
+  if(!client || !profile){ if(abaPreAberta) abaPreAberta.close(); return; }
   var dc = state.docConfig || docConfigPadrao();
   var rgb = hexToRgb(dc.corPrimaria);
   var interno = (modo === 'interno');
@@ -1973,11 +1999,13 @@ async function baixarPdf(modo){
     }
 
     var nomeArquivo = nomeArquivoDocumento(client, d.referencia, interno ? 'RESUMO' : 'FATURA') + '.pdf';
+    doc.setProperties({ title: nomeArquivo });
     var blobPdf = doc.output('blob');
-    await compartilharOuBaixarBlob(blobPdf, nomeArquivo, 'application/pdf');
+    await compartilharOuBaixarBlob(blobPdf, nomeArquivo, 'application/pdf', abaPreAberta);
   }catch(e){
     console.error(e);
-    toast('Erro ao gerar o PDF. Use "Imprimir" e escolha "Salvar como PDF".');
+    if(abaPreAberta) abaPreAberta.close();
+    toast('Erro ao gerar o PDF. Tente novamente em instantes.');
   }
 }
 
