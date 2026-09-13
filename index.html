@@ -642,7 +642,7 @@ function presetGD1(){
       {chave:'desconto', rotulo:'Desconto concedido (decimal — 0.10 = 10%)', categoria:'fixo', valorPadrao:0.10, formato:'percentual'},
       {chave:'injecaoTotal', rotulo:'Injeção total (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'saldoDelta', rotulo:'Saldo — variação do mês (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
-      {chave:'injecaoNaConta', rotulo:'Injeção que aparece na conta (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
+      {chave:'saldoJaCobrado', rotulo:'Esse saldo usado já foi cobrado do cliente em meses anteriores (não cobrar de novo agora)', categoria:'mensal', tipo:'checkbox', valorPadrao:0, formato:'booleano'},
       {chave:'energiaAtiva', rotulo:'Energia ativa (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'adicionalBandeira', rotulo:'Adicional de bandeira (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'gastoNaoCompensado', rotulo:'Gasto não compensado (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
@@ -654,7 +654,8 @@ function presetGD1(){
     formulas: [
       'precoSemDesconto = precoBase + taxaBandeira',
       'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
-      'injecaoEfetiva = injecaoTotal - saldoDelta',
+      'saldoDeltaEfetivo = se(saldoJaCobrado, max(saldoDelta, 0), saldoDelta)',
+      'injecaoEfetiva = injecaoTotal - saldoDeltaEfetivo',
       'injecaoSemDescontoRS = precoSemDesconto * injecaoEfetiva',
       'injecaoComDescontoRS = precoComDesconto * injecaoEfetiva',
       'multasEAdicionais = multas + adicionais',
@@ -671,6 +672,7 @@ function presetGD1(){
     camposVisiveisCliente: ['injecaoTotal','valorFaturaImpresso','multasEAdicionais','valorSemSolar'],
     rotulosCampos: {
       precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
+      saldoDeltaEfetivo:'Saldo considerado na conta (kWh)',
       injecaoEfetiva:'Injeção efetiva (já descontado o saldo)',
       injecaoSemDescontoRS:'Injeção em R$ sem desconto',
       injecaoComDescontoRS:'Injeção em R$ com desconto', multasEAdicionais:'Multas e adicionais',
