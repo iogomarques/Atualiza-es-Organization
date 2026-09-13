@@ -640,7 +640,6 @@ function presetGD1(){
       {chave:'precoBase', rotulo:'Preço do kWh (sem bandeira)', categoria:'fixo', valorPadrao:1.185396, formato:'moeda'},
       {chave:'taxaBandeira', rotulo:'Taxa de bandeira por kWh', categoria:'fixo', valorPadrao:0.025054, formato:'moeda'},
       {chave:'desconto', rotulo:'Desconto concedido (decimal — 0.10 = 10%)', categoria:'fixo', valorPadrao:0.10, formato:'percentual'},
-      {chave:'consumoTotal', rotulo:'Consumo total (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'injecaoTotal', rotulo:'Injeção total (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'saldoDelta', rotulo:'Saldo — variação do mês (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
       {chave:'injecaoNaConta', rotulo:'Injeção que aparece na conta (kWh)', categoria:'mensal', valorPadrao:0, formato:'kwh'},
@@ -656,13 +655,11 @@ function presetGD1(){
       'precoSemDesconto = precoBase + taxaBandeira',
       'precoComDesconto = precoBase*(1-desconto) + taxaBandeira',
       'injecaoEfetiva = injecaoTotal - saldoDelta',
-      'consumoEfetivo = consumoTotal - saldoDelta',
-      'contaEnergiaRS = precoSemDesconto * consumoEfetivo',
       'injecaoSemDescontoRS = precoSemDesconto * injecaoEfetiva',
       'injecaoComDescontoRS = precoComDesconto * injecaoEfetiva',
       'multasEAdicionais = multas + adicionais',
       'somaComponentes = adicionalBandeira + gastoNaoCompensado + iluminacao + adicionais + multas',
-      'valorSemSolar = valorFaturaImpresso + contaEnergiaRS',
+      'valorSemSolar = injecaoSemDescontoRS + valorFaturaImpresso',
       'valorComSolar = injecaoComDescontoRS',
       'descontoRS = injecaoSemDescontoRS - injecaoComDescontoRS',
       'descontoReal = se(valorSemSolar != 0, descontoRS / valorSemSolar, 0)',
@@ -674,10 +671,10 @@ function presetGD1(){
     camposVisiveisCliente: ['injecaoTotal','valorFaturaImpresso','multasEAdicionais','valorSemSolar'],
     rotulosCampos: {
       precoSemDesconto:'Preço do kWh sem desconto', precoComDesconto:'Preço do kWh com desconto',
-      injecaoEfetiva:'Injeção efetiva (já descontado o saldo)', consumoEfetivo:'Consumo efetivo (já descontado o saldo)',
-      contaEnergiaRS:'Conta de energia (tarifa cheia)', injecaoSemDescontoRS:'Injeção em R$ sem desconto',
+      injecaoEfetiva:'Injeção efetiva (já descontado o saldo)',
+      injecaoSemDescontoRS:'Injeção em R$ sem desconto',
       injecaoComDescontoRS:'Injeção em R$ com desconto', multasEAdicionais:'Multas e adicionais',
-      somaComponentes:'Soma dos componentes da fatura', valorSemSolar:'Valor sem solar',
+      somaComponentes:'Soma dos componentes da fatura (confere com o valor da fatura)', valorSemSolar:'Valor sem solar (conta sem solar)',
       valorComSolar:'Valor com solar (antes do ajuste)', descontoRS:'Desconto concedido em R$',
       descontoReal:'Desconto real', lucroFinal:'Receita da usina (lucro)'
     },
@@ -719,7 +716,8 @@ function presetGD2ComFioBMultiplos(){
       {chave:'fioB', rotulo:'Fio B (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'iluminacao', rotulo:'Iluminação pública (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
       {chave:'adicionais', rotulo:'Adicionais (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
-      {chave:'valorFaturaInfo', rotulo:'Valor da fatura (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'}
+      {chave:'valorFaturaInfo', rotulo:'Valor da fatura (R$)', categoria:'mensal', valorPadrao:0, formato:'moeda'},
+      {chave:'saldoCobreNegativo', rotulo:'Esse saldo usado já foi cobrado do cliente em meses anteriores (não cobrar de novo agora)', categoria:'mensal', tipo:'checkbox', valorPadrao:0, formato:'booleano'}
     ],
     formulasCompartilhadas: [
       'precoSemDesconto = precoBase + taxaBandeira',
@@ -993,11 +991,16 @@ function renderNovoOrcamento(){
       '<div class="field"><textarea id="f-observacoes" placeholder="Ex.: aviso de manutenção, ajuste pontual, condição do mês..."></textarea></div>' +
     '</fieldset>';
 
+  var mensalFieldHtml = function(v){
+    if(v.tipo === 'checkbox'){
+      return '<div class="field field-checkbox"><label class="checkbox-field"><input type="checkbox" class="in-mensal in-mensal-checkbox" data-chave="' + v.chave + '"' + (v.valorPadrao?' checked':'') + '> ' + escapeHtml(v.rotulo) + '</label></div>';
+    }
+    return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="" placeholder="0,00"></div>';
+  };
+
   var formHtml;
   if(!profile.possuiItensMultiplos){
-    var camposMensaisHtml = mensalVars.map(function(v){
-      return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="" placeholder="0,00"></div>';
-    }).join('');
+    var camposMensaisHtml = mensalVars.map(mensalFieldHtml).join('');
     formHtml = camposComuns +
       '<fieldset><legend>Dados do mês</legend>' +
         '<p class="hint" style="margin:-4px 0 12px">Dica: em qualquer campo, pode digitar uma soma direto, ex.: <code class="mono">45,20+12,30+8</code></p>' +
@@ -1006,9 +1009,7 @@ function renderNovoOrcamento(){
   } else {
     var pontosSeed = pontosPadraoDoCliente(c);
     var pontosHtml = pontosSeed.map(function(p){ return itemInputRowHtml(profile, p.nome, p.uc, null); }).join('');
-    var camposCompartilhadosHtml = mensalVars.map(function(v){
-      return '<div class="field"><label>' + escapeHtml(v.rotulo) + '</label><input type="text" inputmode="decimal" class="in-mensal" data-chave="' + v.chave + '" value="" placeholder="0,00"></div>';
-    }).join('');
+    var camposCompartilhadosHtml = mensalVars.map(mensalFieldHtml).join('');
     formHtml = camposComuns +
       (camposCompartilhadosHtml ? '<fieldset><legend>Dados compartilhados do mês</legend>' +
         '<p class="hint" style="margin:-4px 0 12px">Dica: em qualquer campo, pode digitar uma soma direto, ex.: <code class="mono">45,20+12,30+8</code></p>' +
@@ -1035,7 +1036,9 @@ function renderNovoOrcamento(){
 
 function readMensaisFromForm(){
   var out = {};
-  document.querySelectorAll('.in-mensal').forEach(function(inp){ out[inp.dataset.chave] = parseNumBR(inp.value); });
+  document.querySelectorAll('.in-mensal').forEach(function(inp){
+    out[inp.dataset.chave] = (inp.type === 'checkbox') ? (inp.checked ? 1 : 0) : parseNumBR(inp.value);
+  });
   return out;
 }
 function readItemRows(){
@@ -1069,7 +1072,9 @@ function lerFormularioBruto(){
     observacoes: txt('f-observacoes'),
     mensais: {}, itens: null
   };
-  document.querySelectorAll('.in-mensal').forEach(function(inp){ out.mensais[inp.dataset.chave] = inp.value; });
+  document.querySelectorAll('.in-mensal').forEach(function(inp){
+    out.mensais[inp.dataset.chave] = (inp.type === 'checkbox') ? (inp.checked ? '1' : '0') : inp.value;
+  });
   var pontosContainer = document.getElementById('pontos-container');
   if(pontosContainer){
     out.itens = [];
@@ -1109,7 +1114,9 @@ function restaurarRascunhoSeExistir(client, profile){
   setIf('f-observacoes', rascunho.observacoes || '');
   Object.keys(rascunho.mensais || {}).forEach(function(chave){
     var el = document.querySelector('.in-mensal[data-chave="' + chave + '"]');
-    if(el) el.value = rascunho.mensais[chave];
+    if(!el) return;
+    if(el.type === 'checkbox') el.checked = !!parseNumBR(rascunho.mensais[chave]);
+    else el.value = rascunho.mensais[chave];
   });
   if(profile.possuiItensMultiplos && rascunho.itens && rascunho.itens.length){
     var wrap = document.getElementById('pontos-container');
@@ -1136,10 +1143,11 @@ function restaurarRascunhoSeExistir(client, profile){
      fio B de cada outro    = seu consumo * taxa de fio B por kWh
    Isso assume 100% da energia sendo repartida só entre os pontos cadastrados. */
 function aplicarDistribuicaoAutomatica(profile, itens, valoresEntrada){
-  if(!profile.distribuicaoAutomaticaPontos || !itens || itens.length < 1) return itens;
+  var vazio = { itens: itens, excedenteKwh: 0 };
+  if(!profile.distribuicaoAutomaticaPontos || !itens || itens.length < 1) return vazio;
   var chaveConsumo = 'consumoKwh';
   var chaveFioB = profile.chaveItemFioB;
-  if(!chaveFioB) return itens;
+  if(!chaveFioB) return vazio;
 
   var indicesPrincipais = [];
   itens.forEach(function(it, i){ if(it.pontoPrincipal) indicesPrincipais.push(i); });
@@ -1161,19 +1169,33 @@ function aplicarDistribuicaoAutomatica(profile, itens, valoresEntrada){
   var autoConsumo = consumoTotal - injecaoNaConta;
   var consumoPrincipal = energiaAtiva + autoConsumo;
 
-  /* O "que sobra" pros pontos secundários pode dar negativo (quando o consumo do
-     principal, naquele ciclo de fatura, é maior que a injeção total do mês — isso
-     acontece por causa da defasagem entre as datas de fechamento das duas contas).
-     Isso é normal e não é erro: continua entrando na conta como valor negativo,
-     reduzindo o total (a planilha mostra "-" na tela, mas o valor conta de verdade). */
+  /* Um ponto de consumo NUNCA pode ter injeção negativa — não existe fisicamente
+     "mandar energia negativa" pra um ponto. Quando o consumo do principal (naquele
+     ciclo de fatura) é maior que a injeção total do mês, a diferença vem do SALDO
+     acumulado da conta (crédito bancado em meses anteriores). Por padrão, isso é
+     tratado como energia nova sendo vendida agora — cobra-se o valor cheio do
+     principal, sem desconto nenhum (é a prática normal: "mandei 1.100, ele consumiu
+     mais 100 do saldo, cobro 1.200"). SÓ quando esse saldo específico já foi cobrado
+     do cliente em meses anteriores (checkbox marcado — ex.: caso do Aurélio) é que
+     NÃO se cobra de novo: aí a diferença vira um AJUSTE PRÓPRIO que reduz o total,
+     nunca disfarçado de "valor negativo" de um ponto — os pontos secundários ficam
+     sempre zerados, nunca negativos, independente da opção marcada. */
   var restante = injecaoSolar - consumoPrincipal;
+  var saldoJaCobrado = !!valoresEntrada.saldoCobreNegativo;
+  var excedenteKwh = 0;
   if(restante < 0){
-    toast('O consumo do ponto principal (' + fmtNum(consumoPrincipal) + ' kWh) ficou maior que a injeção solar do mês (' + fmtNum(injecaoSolar) + ' kWh). Isso pode ser normal (defasagem de datas de fechamento) — os demais pontos ficam com valor negativo, reduzindo o total. Se não for esperado, confira "Energia ativa" e "Injeção que aparece na conta".');
+    excedenteKwh = saldoJaCobrado ? (-restante) : 0;
+    if(saldoJaCobrado){
+      toast('O consumo do principal ficou maior que a injeção do mês — como esse saldo já foi cobrado do cliente antes, o valor equivalente (' + fmtNum(-restante) + ' kWh) entrou como ajuste, reduzindo o total. Os pontos secundários ficaram zerados.');
+    } else {
+      toast('O consumo do ponto principal (' + fmtNum(consumoPrincipal) + ' kWh) ficou maior que a injeção solar do mês (' + fmtNum(injecaoSolar) + ' kWh) — a diferença veio do saldo da conta. Por padrão isso está sendo cobrado do cliente como consumo normal (sem desconto). Se esse saldo já tiver sido cobrado dele em meses anteriores, marque a opção pra não cobrar de novo. Se não for esperado, confira "Energia ativa" e "Injeção que aparece na conta".');
+    }
+    restante = 0;
   }
   var indicesSecundarios = itens.map(function(it,i){ return i; }).filter(function(i){ return i !== iPrincipal; });
   var fatia = indicesSecundarios.length ? (restante / indicesSecundarios.length) : 0;
 
-  return itens.map(function(it, i){
+  var itensProcessados = itens.map(function(it, i){
     if(i === iPrincipal){
       it.pontoPrincipal = 1;
       it[chaveConsumo] = consumoPrincipal;
@@ -1187,6 +1209,8 @@ function aplicarDistribuicaoAutomatica(profile, itens, valoresEntrada){
     }
     return it;
   });
+
+  return { itens: itensProcessados, excedenteKwh: excedenteKwh };
 }
 
 /* Depois de calcular, escreve de volta nos campos da tela o consumo/Fio B que o sistema
@@ -1220,8 +1244,11 @@ function onCalcular(){
   var valoresEntrada = Object.assign({}, fixos, mensais, { ajuste: ajuste });
 
   var itensInputRaw = profile.possuiItensMultiplos ? readItemRows() : null;
+  var excedenteKwh = 0;
   if(profile.possuiItensMultiplos && profile.distribuicaoAutomaticaPontos){
-    itensInputRaw = aplicarDistribuicaoAutomatica(profile, itensInputRaw, valoresEntrada);
+    var distrib = aplicarDistribuicaoAutomatica(profile, itensInputRaw, valoresEntrada);
+    itensInputRaw = distrib.itens;
+    excedenteKwh = distrib.excedenteKwh;
     refletirValoresCalculadosNoFormulario(profile, itensInputRaw);
   }
 
@@ -1229,6 +1256,17 @@ function onCalcular(){
   if(!resultado.ok){
     toast('Erro na fórmula do perfil — ' + mensagemErroAvaliacao(resultado.erro));
     return;
+  }
+
+  /* Quando o consumo do ponto principal excede a injeção do mês e isso NÃO foi
+     coberto pelo saldo, a diferença vira seu próprio ajuste explícito no total —
+     nunca um valor negativo disfarçado de "ponto de consumo" (não existe fisicamente
+     enviar energia negativa pra um ponto). */
+  var ajusteExcedenteRS = 0;
+  if(excedenteKwh > 0.004 && resultado.scope.precoComDesconto !== undefined){
+    ajusteExcedenteRS = excedenteKwh * resultado.scope.precoComDesconto;
+    resultado.scope.ajusteConsumoExcedente = ajusteExcedenteRS;
+    resultado.scope[profile.chaveTotalFinal] = (resultado.scope[profile.chaveTotalFinal] || 0) - ajusteExcedenteRS;
   }
 
   /* "Quem paga a fatura" é uma configuração do CLIENTE, não do perfil. O Fio B só existe
@@ -1276,7 +1314,8 @@ function onCalcular(){
     camposVisiveisEscolhidos: camposVisiveis,
     ocultarFioBPorPonto: ocultarFioBPorPonto,
     scope: resultado.scope, itensResultado: resultado.itensResultado, chaveItemValor: resultado.chaveItemValor,
-    repasseFatura: repasseFatura
+    repasseFatura: repasseFatura,
+    ajusteExcedenteRS: ajusteExcedenteRS
   };
   renderPreview();
 }
@@ -1316,6 +1355,9 @@ function construirHtmlFatura(client, profile, draft, dc){
   }
   if(draft.repasseFatura > 0.004){
     linhasHtml += '<tr><td style="'+linhaTd1+'">Repasse da fatura de energia</td><td style="'+linhaTd2+'">' + escapeHtml(fmtBRL(draft.repasseFatura)) + '</td></tr>' + linhaSep;
+  }
+  if(draft.ajusteExcedenteRS > 0.004){
+    linhasHtml += '<tr><td style="'+linhaTd1+'">Ajuste — consumo do mês maior que a injeção</td><td style="'+linhaTd2+'">-' + escapeHtml(fmtBRL(draft.ajusteExcedenteRS)) + '</td></tr>' + linhaSep;
   }
 
   var intro = (profile.textoIntroducao || '').replace('{referencia}', draft.referencia);
@@ -1440,7 +1482,9 @@ function duplicarQuote(id){
   setIf('f-observacoes', q.observacoes);
   Object.keys(q.valoresEntrada||{}).forEach(function(chave){
     var el = document.querySelector('.in-mensal[data-chave="'+chave+'"]');
-    if(el) el.value = fmtNum(q.valoresEntrada[chave]);
+    if(!el) return;
+    if(el.type === 'checkbox') el.checked = !!q.valoresEntrada[chave];
+    else el.value = fmtNum(q.valoresEntrada[chave]);
   });
   if(q.itens && q.itens.length){
     var profile = getProfile(q.profileId);
@@ -1688,6 +1732,13 @@ async function baixarPdf(modo){
           doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
           doc.text(fmtBRL(item[d.chaveItemValor]), pageW - marginX, y, { align:'right' });
           y += 12;
+          (profile.itemVariaveis||[]).forEach(function(v){
+            if(v.chave === 'consumoKwh') return; /* já mostrado na linha de cima */
+            checkBreak(11);
+            doc.setFont('helvetica','normal'); doc.setFontSize(7.8); doc.setTextColor(120,132,124);
+            doc.text('   ' + v.rotulo + ': ' + formatarValor(item[v.chave], v.formato), marginX, y);
+            y += 10;
+          });
           linhasItemPdf.forEach(function(line){
             var k = parseAssignKey(line);
             if(!k || k === d.chaveItemValor) return;
@@ -1706,6 +1757,24 @@ async function baixarPdf(modo){
         doc.text('Ajuste do mês', marginX, y);
         doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
         doc.text(fmtBRL(d.ajuste), pageW - marginX, y, { align:'right' });
+        y += 14;
+      }
+
+      if(d.repasseFatura > 0.004){
+        checkBreak(14);
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(92,111,99);
+        doc.text('Repasse da fatura de energia (locadora paga a fatura)', marginX, y);
+        doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
+        doc.text(fmtBRL(d.repasseFatura), pageW - marginX, y, { align:'right' });
+        y += 14;
+      }
+
+      if(d.ajusteExcedenteRS > 0.004){
+        checkBreak(14);
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(92,111,99);
+        doc.text('Ajuste — consumo do principal maior que a injeção (sem saldo cobrindo)', marginX, y);
+        doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
+        doc.text('-' + fmtBRL(d.ajusteExcedenteRS), pageW - marginX, y, { align:'right' });
         y += 14;
       }
 
@@ -1836,6 +1905,15 @@ async function baixarPdf(modo){
         doc.text('Repasse da fatura de energia', marginX, y);
         doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
         doc.text(fmtBRL(d.repasseFatura), pageW - marginX, y, { align:'right' });
+        y += 22;
+      }
+
+      if(d.ajusteExcedenteRS > 0.004){
+        checkBreak(20);
+        doc.setFont('helvetica','normal'); doc.setTextColor(92,111,99);
+        doc.text('Ajuste — consumo do mês maior que a injeção', marginX, y);
+        doc.setFont('helvetica','bold'); doc.setTextColor(22,36,29);
+        doc.text('-' + fmtBRL(d.ajusteExcedenteRS), pageW - marginX, y, { align:'right' });
         y += 22;
       }
 
